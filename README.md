@@ -8,6 +8,12 @@
 npm install 2shark
 ```
 
+или для использования CLI
+
+```bash
+npm install -g 2shark
+```
+
 ## Использование как пакет
 
 ### Импорт и использование в коде
@@ -33,25 +39,7 @@ await initDatabase();
 await clearDatabase();
 ```
 
-### Переменные окружения
-
-```bash
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=postgres
-DB_USER=postgres
-DB_PASSWORD=password
-```
-
-## Использование как CLI
-
-### Глобальная установка
-
-```bash
-npm install -g 2shark
-```
-
-### Команды
+### Использование как CLI
 
 ```bash
 # Сканировать документацию
@@ -99,6 +87,16 @@ docs/
 
 ## Конфигурация специальностей
 
+Файл `config/category-mapping.yaml` используется для настройки маппинга технологий к специальностям и определения приоритетов при сканировании документации.
+
+### Назначение
+
+- **Категоризация технологий** - связывает технологии с областями (Frontend, Backend, DevOps и т.д.)
+- **Приоритизация контента** - определяет важность технологий для отображения
+- **Автоматическая классификация** - помогает системе правильно категоризировать найденные документы
+
+### Структура конфигурации
+
 Создайте файл `config/category-mapping.yaml`:
 
 ```yaml
@@ -116,6 +114,74 @@ Node.js:
   specialty: Backend
   priority: 1
   description: JavaScript runtime для сервера
+
+PostgreSQL:
+  specialty: Database
+  priority: 3
+  description: Реляционная база данных
+
+Docker:
+  specialty: DevOps
+  priority: 4
+  description: Контейнеризация приложений
+```
+
+### Параметры конфигурации
+
+| Параметр      | Тип    | Описание                          | Пример                          |
+| ------------- | ------ | --------------------------------- | ------------------------------- |
+| `specialty`   | string | Область специализации             | `Frontend`, `Backend`, `DevOps` |
+| `priority`    | number | Приоритет (1-10, где 10 - высший) | `5`                             |
+| `description` | string | Краткое описание технологии       | `"Основы React"`                |
+
+### Управление конфигурацией
+
+#### Добавление новой технологии
+
+```yaml
+Vue.js:
+  specialty: Frontend
+  priority: 4
+  description: Прогрессивный JavaScript фреймворк
+```
+
+#### Изменение приоритета
+
+```yaml
+React:
+  specialty: Frontend
+  priority: 8 # Увеличен приоритет
+  description: Основы React
+```
+
+#### Создание новой специальности
+
+```yaml
+Machine Learning:
+  specialty: AI
+  priority: 7
+  description: Машинное обучение и ИИ
+```
+
+### Автоматическое применение
+
+Конфигурация автоматически применяется при:
+
+- Сканировании документации (`2shark parse-db`)
+- Инициализации базы данных (`2shark init-db`)
+- Обновлении существующих записей
+
+### Примеры использования
+
+```bash
+# Сканирование с кастомной конфигурацией
+2shark parse-db -c ./my-config.yaml
+
+# Проверка конфигурации
+cat config/category-mapping.yaml | yq eval '.'
+
+# Валидация структуры
+node -e "const yaml = require('js-yaml'); const fs = require('fs'); console.log(yaml.load(fs.readFileSync('config/category-mapping.yaml', 'utf8')));"
 ```
 
 ## Типы
