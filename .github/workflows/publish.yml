@@ -41,11 +41,35 @@ jobs:
       - name: Build package
         run: npm run build
 
-      - name: Bump version
+      - name: Check for changesets
+        id: changesets
         run: |
-          npm version patch --no-git-tag-version
+          if ls .changeset/*.md 1> /dev/null 2>&1; then
+            echo "has-changesets=true" >> $GITHUB_OUTPUT
+            echo "Found changesets"
+          else
+            echo "has-changesets=false" >> $GITHUB_OUTPUT
+            echo "No changesets found"
+          fi
+
+      - name: Version packages
+        if: steps.changesets.outputs.has-changesets == 'true'
+        run: npx changeset version
+
+      - name: Get version
+        id: get-version
+        run: |
           VERSION=$(node -p "require('./package.json').version")
-          echo "New version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $VERSION"
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "chore: version bump and changelog update" || exit 0
+          git push
 
       - name: Setup NPM auth
         run: |
@@ -58,10 +82,48 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Git tag
+      - name: Create Git tag and release
         run: |
           VERSION=$(node -p "require('./package.json').version")
           git tag "v$VERSION"
           git push origin "v$VERSION"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get-version.outputs.version }}
+          release_name: Release v${{ steps.get-version.outputs.version }}
+          body: |
+            ## Changes in this Release
+            
+            Automated release from GitHub Actions.
+            
+            ### Installation
+            
+            ```bash
+            npm install 2shark
+            ```
+            
+            ### Usage
+            
+            ```typescript
+            import { parseDatabase, initDatabase } from '2shark';
+            
+            const items = await parseDatabase({
+              docsPath: './docs',
+              configPath: './config/category-mapping.yaml'
+            });
+            ```
+            
+            ### Features
+            
+            - Built with esbuild for fast compilation
+            - TypeScript definitions included
+            - PostgreSQL database integration
+            - CLI interface for easy usage
+          draft: false
+          prerelease: false 
