@@ -1,5 +1,11 @@
 # @my-interview-tech/2shark
 
+## 2.0.1
+
+### Patch Changes
+
+- 2eb29a8: - Обновлен README.md
+
 ## 2.0.0
 
 ### Major Changes
