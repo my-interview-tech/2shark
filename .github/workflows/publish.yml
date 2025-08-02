@@ -1,0 +1,61 @@
+name: Publish
+
+on: workflow_dispatch
+
+concurrency: ${{ github.workflow }}
+
+jobs:
+  build:
+    env:
+      CI: true
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+      - name: Check permissions
+        if: ${{ contains(fromJSON('["dHIM24"]'), github.actor) == false }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.setFailed("You don't have permission to run this workflow!");
+
+      - uses: actions/checkout@v4
+        with:
+          ref: 'master'
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build package
+        run: npm run build
+
+      - name: Setup NPM auth
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.SHARP_NPM_PUBLISH_TOKEN }}" > ~/.npmrc
+          echo "registry=https://registry.npmjs.org/" >> ~/.npmrc
+
+
+      - name: Publish to NPM
+        run: npm publish --access public
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Git tag
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

@@ -1,0 +1,73 @@
+{
+  "name": "2shark",
+  "version": "1.0.0",
+  "description": "Скрипт для сканирования документации и формирования PostgreSQL базы данных",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "2shark": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "config"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "parse-db": "ts-node src/parseDatabase/parseDatabase.ts",
+    "release": "npm run build && changeset publish",
+    "prepublishOnly": "npm run build",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "build": "node esbuild.config.js",
+    "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "tsc --noEmit",
+    "lint:fix": "tsc --noEmit --pretty",
+    "prepare": "husky",
+    "publish:npm": "npm publish --registry https://registry.npmjs.org/",
+    "publish:github": "npm publish --registry https://npm.pkg.github.com/"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.0",
+    "marked": "^9.1.6",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.25.0",
+    "@changesets/get-github-info": "^0.5.1",
+    "@types/jest": "^30.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.10.0",
+    "@types/pg": "^8.10.9",
+    "esbuild": "^0.25.8",
+    "husky": "^8.0.3",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.0",
+    "ts-node": "^10.9.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.0"
+  },
+  "author": "https://github.com/my-interview-tech",
+  "license": "MIT",
+  "homepage": "https://github.com/my-interview-tech/2shark#readme",
+  "keywords": [
+    "markdown",
+    "docs",
+    "postgresql",
+    "cli",
+    "database"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/my-interview-tech/2shark.git"
+  },
+  "bugs": {
+    "url": "https://github.com/my-interview-tech/2shark/issues"
+  }
+}

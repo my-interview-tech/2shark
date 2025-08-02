@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build package
+        run: npm run build
+
+      - name: Check for changesets
+        id: changesets
+        run: |
+          if npx changeset status --since master; then
+            echo "has-changesets=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-changesets=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Version packages
+        if: steps.changesets.outputs.has-changesets == 'true'
+        run: |
+          npx changeset version 
