@@ -4,25 +4,8 @@
 
 ## Установка
 
-### Из GitHub Packages
-
 ```bash
-npm install @my-interview-tech/2shark
-```
-
-### Настройка .npmrc для GitHub Packages
-
-Создайте файл `.npmrc` в корне вашего проекта:
-
-```
-@my-interview-tech:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-Для локальной разработки создайте Personal Access Token с правами `read:packages` и установите переменную окружения:
-
-```bash
-export GITHUB_TOKEN=your_github_token_here
+npm install 2shark
 ```
 
 ## Использование как пакет
@@ -65,7 +48,7 @@ DB_PASSWORD=password
 ### Глобальная установка
 
 ```bash
-npm install -g @my-interview-tech/2shark
+npm install -g 2shark
 ```
 
 ### Команды

@@ -41,6 +41,12 @@ jobs:
       - name: Build package
         run: npm run build
 
+      - name: Bump version
+        run: |
+          npm version patch --no-git-tag-version
+          VERSION=$(node -p "require('./package.json').version")
+          echo "New version: $VERSION"
+
       - name: Setup NPM auth
         run: |
           echo "//registry.npmjs.org/:_authToken=${{ secrets.SHARP_NPM_PUBLISH_TOKEN }}" > ~/.npmrc
