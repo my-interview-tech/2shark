@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { DatabaseConfig } from '../../../types';
 import { DB_CONFIG } from '../../../config';
+import { SCHEMA } from '../../../schema';
 
 /**
  * Очищает все данные из базы данных
@@ -14,11 +15,11 @@ import { DB_CONFIG } from '../../../config';
  * @throws {Error} При ошибках подключения к базе данных
  */
 export async function clearDatabaseSchema(client: any): Promise<void> {
-  await client.query('DELETE FROM article_tags');
-  await client.query('DELETE FROM tags');
-  await client.query('DELETE FROM articles');
-  await client.query('DELETE FROM technologies');
-  await client.query('DELETE FROM specialties');
+  await client.query(SCHEMA.DELETE_ARTICLE_TAGS_DATA_QUERY);
+  await client.query(SCHEMA.DELETE_TAGS_DATA_QUERY);
+  await client.query(SCHEMA.DELETE_ARTICLES_DATA_QUERY);
+  await client.query(SCHEMA.DELETE_TECHNOLOGIES_DATA_QUERY);
+  await client.query(SCHEMA.DELETE_SPECIALTIES_DATA_QUERY);
 
   console.log('База данных очищена');
 }

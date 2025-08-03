@@ -1,31 +1,62 @@
+export type YAMLContent = SpecialtyMapping | TechnologyMapping;
+
+/**
+ * Маппинг специальностей
+ *
+ * Определяет основные специальности в системе с их приоритетами
+ * и описаниями.
+ *
+ * @example
+ * ```typescript
+ * const specialties: SpecialtyMapping = {
+ *   Frontend: {
+ *     priority: 1,
+ *     description: 'Веб-разработка, UI/UX, браузерные технологии'
+ *   },
+ *   Backend: {
+ *     priority: 2,
+ *     description: 'Серверная разработка, API, базы данных'
+ *   }
+ * };
+ * ```
+ */
+export interface SpecialtyMapping {
+  [specialty: string]: {
+    /** Приоритет для сортировки (меньше = выше) */
+    priority: number;
+    /** Описание специальности */
+    description: string;
+  };
+}
+
 /**
  * Маппинг технологий в специальности
  *
- * Определяет как технологии (например, React, TypeScript)
+ * Определяет как технологии (например, React, Java)
  * соотносятся с основными специальностями (Frontend, Backend).
  *
  * @example
  * ```typescript
- * const mapping: CategoryMapping = {
+ * const mapping: TechnologyMapping = {
  *   React: {
- *     technology: 'Frontend',
+ *     specialty: 'Frontend',
  *     priority: 5,
  *     description: 'Основы React'
  *   },
- *   TypeScript: {
- *     technology: 'Frontend',
+ *   Java: {
+ *     specialty: 'Backend',
  *     priority: 6,
- *     description: 'Типизированный JavaScript'
+ *     description: 'Серверный язык программирования'
  *   },
  *   Git: {
- *     technology: ['Frontend', 'Backend'], // может быть в нескольких категориях
+ *     specialty: ['Frontend', 'Backend'], // может быть в нескольких специальностях
  *     priority: 1,
  *     description: 'Система контроля версий'
  *   }
  * };
  * ```
  */
-export interface CategoryMapping {
+export interface TechnologyMapping {
   [subcategory: string]: {
     /** Специальность или массив специальностей */
     specialty: string | string[];
@@ -77,6 +108,10 @@ export interface DocItem {
   description: string;
   /** Массив тегов документа */
   tags: string[];
+  /** Массив валидированных ссылок из info */
+  info: string[];
+  /** Хеш содержимого файла для отслеживания изменений */
+  file_hash: string;
   /** Дата создания документа */
   created_at: Date;
   /** Дата последнего обновления документа */
@@ -92,10 +127,13 @@ export interface DocItem {
  * @example
  * ```typescript
  * const options: ScanOptions = {
- *   docsPath: './my-docs',
- *   configPath: './my-config.yaml',
+ *   docsPath: './docs',
+ *   configPath: {
+ *     technologyPath: './config/technology-mapping.yaml',
+ *     specialtiesPath: './config/specialties.yaml'
+ *   },
  *   databaseUrl: 'postgresql://user:pass@localhost:5432/db',
- *   clearBeforeScan: true
+ *   clearBeforeScan: false
  * };
  *
  * const items = await parseDatabase(options);
@@ -105,8 +143,13 @@ export interface ScanOptions {
   /** Путь к директории с документацией (по умолчанию: './docs') */
   docsPath?: string;
 
-  /** Путь к файлу конфигурации категорий (по умолчанию: './config/technology-mapping.yaml') */
-  configPath?: string;
+  /** Пути к файлам конфигурации */
+  configPath: {
+    /** Путь к файлу маппинга технологий (по умолчанию: './config/category-mapping.yaml') */
+    technologyPath: string;
+    /** Путь к файлу специальностей (по умолчанию: './config/specialties.yaml') */
+    specialtiesPath: string;
+  };
 
   /** URL подключения к базе данных */
   databaseUrl?: string;
@@ -156,4 +199,25 @@ export interface DatabaseConfig {
   user: string;
   /** Пароль пользователя (по умолчанию: 'password') */
   password: string;
+}
+
+export interface ParseDbOptions {
+  path: string;
+  config: string;
+  clear: boolean;
+  checkOnly: boolean;
+  configDir?: string;
+}
+
+export interface CheckUpdatesOptions {
+  path: string;
+  config: string;
+  configDir?: string;
+}
+
+export interface UpdateArticlesOptions {
+  path: string;
+  config: string;
+  force: boolean;
+  configDir?: string;
 }

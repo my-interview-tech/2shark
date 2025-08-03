@@ -1,6 +1,7 @@
 import { parseDatabase } from './parseDatabase';
 import { DocsScanner } from './class';
 import { DocItem, ScanOptions } from '../types';
+import { DEFAULT_OPTIONS } from './config';
 
 jest.mock('./class/DocsScanner', () => ({
   DocsScanner: jest.fn(),
@@ -20,6 +21,8 @@ const mockDocItems: DocItem[] = [
     priority: 1,
     description: 'React framework',
     tags: ['react', 'hooks'],
+    info: [],
+    file_hash: 'react-hooks-hash',
     created_at: new Date(),
     updated_at: new Date(),
   },
@@ -32,6 +35,8 @@ const mockDocItems: DocItem[] = [
     priority: 2,
     description: 'TypeScript language',
     tags: ['typescript', 'javascript'],
+    info: [],
+    file_hash: 'typescript-basics-hash',
     created_at: new Date(),
     updated_at: new Date(),
   },
@@ -45,7 +50,7 @@ describe('Unit/utility/function/parseDatabase', () => {
     mockClose.mockResolvedValue(undefined);
 
     mockDocsScanner.mockImplementation(
-      () =>
+      (options) =>
         ({
           scanDocs: mockScanDocs,
           close: mockClose,
@@ -59,7 +64,7 @@ describe('Unit/utility/function/parseDatabase', () => {
 
       const result = await parseDatabase();
 
-      expect(mockDocsScanner).toHaveBeenCalledWith({});
+      expect(mockDocsScanner).toHaveBeenCalledWith(DEFAULT_OPTIONS);
       expect(mockScanDocs).toHaveBeenCalled();
       expect(mockClose).toHaveBeenCalled();
 
@@ -69,7 +74,10 @@ describe('Unit/utility/function/parseDatabase', () => {
     it('должен сканировать документацию с кастомными опциями', async () => {
       const options: ScanOptions = {
         docsPath: './custom-docs',
-        configPath: './custom-config.yaml',
+        configPath: {
+          technologyPath: './custom-config.yaml',
+          specialtiesPath: './custom-specialties.yaml',
+        },
       };
 
       mockScanDocs.mockResolvedValue(mockDocItems);
@@ -88,7 +96,7 @@ describe('Unit/utility/function/parseDatabase', () => {
 
       const result = await parseDatabase();
 
-      expect(mockDocsScanner).toHaveBeenCalledWith({});
+      expect(mockDocsScanner).toHaveBeenCalledWith(DEFAULT_OPTIONS);
       expect(mockScanDocs).toHaveBeenCalled();
       expect(mockClose).toHaveBeenCalled();
 
@@ -104,9 +112,17 @@ describe('Unit/utility/function/parseDatabase', () => {
 
       mockScanDocs.mockResolvedValue(mockDocItems);
 
-      const result = await parseDatabase({});
+      const result = await parseDatabase();
 
-      expect(mockDocsScanner).toHaveBeenCalledWith({});
+      expect(mockDocsScanner).toHaveBeenCalledWith(
+        expect.objectContaining({
+          docsPath: './docs',
+          configPath: {
+            technologyPath: './config/category-mapping.yaml',
+            specialtiesPath: './config/specialties.yaml',
+          },
+        }),
+      );
       expect(result).toEqual(mockDocItems);
     });
 
@@ -116,8 +132,11 @@ describe('Unit/utility/function/parseDatabase', () => {
       mockDocsScanner.mockClear();
 
       const options: ScanOptions = {
-        docsPath: undefined,
-        configPath: undefined,
+        docsPath: './docs',
+        configPath: {
+          technologyPath: './config/category-mapping.yaml',
+          specialtiesPath: './config/specialties.yaml',
+        },
       };
 
       mockScanDocs.mockResolvedValue(mockDocItems);
@@ -136,7 +155,15 @@ describe('Unit/utility/function/parseDatabase', () => {
 
       await expect(parseDatabase()).rejects.toThrow('Scan error');
 
-      expect(mockDocsScanner).toHaveBeenCalledWith({});
+      expect(mockDocsScanner).toHaveBeenCalledWith(
+        expect.objectContaining({
+          docsPath: './docs',
+          configPath: {
+            technologyPath: './config/category-mapping.yaml',
+            specialtiesPath: './config/specialties.yaml',
+          },
+        }),
+      );
       expect(mockScanDocs).toHaveBeenCalled();
       expect(mockClose).toHaveBeenCalled();
     });
@@ -147,7 +174,7 @@ describe('Unit/utility/function/parseDatabase', () => {
 
       await expect(parseDatabase()).rejects.toThrow('Close error');
 
-      expect(mockDocsScanner).toHaveBeenCalledWith({});
+      expect(mockDocsScanner).toHaveBeenCalledWith(DEFAULT_OPTIONS);
       expect(mockScanDocs).toHaveBeenCalled();
       expect(mockClose).toHaveBeenCalled();
     });
@@ -161,7 +188,12 @@ describe('Unit/utility/function/parseDatabase', () => {
 
       const options: ScanOptions = {
         docsPath: './docs',
-        configPath: './config/category-mapping.yaml',
+        configPath: {
+          technologyPath: './config/category-mapping.yaml',
+          specialtiesPath: './config/specialties.yaml',
+        },
+        databaseUrl: 'postgresql://user:pass@localhost:5432/db',
+        clearBeforeScan: false,
       };
       mockScanDocs.mockResolvedValue(mockDocItems);
 

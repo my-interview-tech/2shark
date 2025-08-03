@@ -1,9 +1,9 @@
 # =============================================================================
-# КОНФИГУРАЦИЯ МАППИНГА КАТЕГОРИЙ ДЛЯ 2shark
+# КОНФИГУРАЦИЯ МАППИНГА ТЕХНОЛОГИЙ ДЛЯ 2shark
 # =============================================================================
 #
 # Этот файл определяет как технологии (папки с документацией) 
-# соотносятся с основными категориями в базе данных.
+# соотносятся с основными специальностями в базе данных.
 #
 # НАЗНАЧЕНИЕ:
 # - Автоматическая категоризация документов при сканировании
@@ -12,14 +12,14 @@
 # - Поддержка документов в нескольких категориях
 #
 # СТРУКТУРА ФАЙЛА:
-# Подкатегория:
-#   technology: ОсновнаяКатегория или [Категория1, Категория2]
+# Технология:
+#   specialty: ОсновнаяСпециальность или [Специальность1, Специальность2]
 #   priority: число (меньше = выше приоритет)
 #   description: Описание технологии
 #
 # ПРИМЕРЫ:
-# - Одиночная категория: technology: Frontend
-# - Множественные категории: technology: Frontend,Backend
+# - Одиночная специальность: specialty: Frontend
+# - Множественные специальности: specialty: Frontend,Backend
 # - Приоритеты: 1 = самый высокий, 10 = самый низкий
 #
 # ПОДДЕРЖИВАЕМЫЕ КАТЕГОРИИ:
@@ -33,42 +33,42 @@
 # =============================================================================
 
 HTML:
-  technology: Frontend
+  specialty: Frontend
   priority: 1
   description: Язык разметки гипертекста
 
 CSS:
-  technology: Frontend
+  specialty: Frontend
   priority: 2
   description: Каскадные таблицы стилей
 
 JSCore:
-  technology: Frontend
+  specialty: Frontend
   priority: 3
   description: Основы JavaScript
 
 State Managers:
-  technology: Frontend
+  specialty: Frontend
   priority: 4
   description: Управление состоянием в React приложениях
 
 ReactCore:
-  technology: Frontend
+  specialty: Frontend
   priority: 5
   description: Основы React
 
 TypeScript:
-  technology: Frontend
+  specialty: Frontend
   priority: 6
   description: Типизированный JavaScript
 
 Next.js:
-  technology: Frontend
+  specialty: Frontend
   priority: 7
   description: React фреймворк
 
 Jest, RTL:
-  technology: Frontend
+  specialty: Frontend
   priority: 8
   description: Тестирование React приложений
 
@@ -77,12 +77,12 @@ Jest, RTL:
 # =============================================================================
 
 Node.js:
-  technology: Backend
+  specialty: Backend
   priority: 1
   description: JavaScript runtime для сервера
 
 Java:
-  technology: Backend
+  specialty: Backend
   priority: 2
   description: Серверный язык программирования
 
@@ -92,21 +92,21 @@ Java:
 # Технологии, которые могут быть в нескольких специальностях
 
 Git:
-  technology: Frontend,Backend
+  specialty: Frontend,Backend
   priority: 1
   description: Система контроля версий
 
-Browser:
-  technology: Frontend,Backend
+Браузерное окружение:
+  specialty: Frontend,Backend
   priority: 2
   description: Браузерное окружение
 
-Patterns:
-  technology: Frontend,Backend
+Патерны:
+  specialty: Frontend,Backend
   priority: 3
   description: Паттерны программирования
 
 SQL:
-  technology: Frontend,Backend
+  specialty: Frontend,Backend
   priority: 4
   description: Работа с базами данных

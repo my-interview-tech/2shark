@@ -1,5 +1,6 @@
 import { DocsScanner } from './class/DocsScanner';
 import { DocItem, ScanOptions } from '../types';
+import { DEFAULT_OPTIONS } from './config';
 
 /**
  * Функция для быстрого сканирования документации
@@ -13,13 +14,16 @@ import { DocItem, ScanOptions } from '../types';
  *
  * const items = await parseDatabase({
  *   docsPath: './docs',
- *   configPath: './config/technology-mapping.yaml'
+ *   configPath: {
+ *     technologyPath: './config/technology-mapping.yaml',
+ *     specialtiesPath: './config/specialties.yaml'
+ *   }
  * });
  *
  * console.log(`Найдено ${items.length} документов`);
  * ```
  */
-export async function parseDatabase(options: ScanOptions = {}): Promise<DocItem[]> {
+export async function parseDatabase(options: ScanOptions = DEFAULT_OPTIONS): Promise<DocItem[]> {
   const scanner = new DocsScanner(options);
 
   try {

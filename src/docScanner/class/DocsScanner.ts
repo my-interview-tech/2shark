@@ -1,33 +1,30 @@
 import fs from 'fs/promises';
 import { Pool } from 'pg';
 import path from 'path';
-import { loadCategoryMapping, scanDirectory } from '../lib';
-import { CategoryMapping, DocItem, ScanOptions, DatabaseConfig } from '../../types';
+import { loadYAMLContent, scanDirectory } from '../lib';
+import { DocItem, ScanOptions, TechnologyMapping, SpecialtyMapping } from '../../types';
 import { DB_CONFIG } from '../../config';
+import { DEFAULT_OPTIONS } from '../config';
 
 /**
  * Сканер документации для обработки Markdown файлов и их сохранения в базу данных
- *
- * @example
- * ```typescript
- * const scanner = new DocsScanner({
- *   docsPath: './docs',
- *   configPath: './config/category-mapping.yaml'
- * });
- *
- * const items = await scanner.scanDocs();
- * await scanner.close();
- * ```
  */
 export class DocsScanner {
   private pool: Pool;
-  private categoryMapping: CategoryMapping;
+  private technologyMapping: TechnologyMapping;
+  private specialtyMapping: SpecialtyMapping;
   private options: ScanOptions;
 
-  constructor(options: ScanOptions = {}) {
+  constructor(options: ScanOptions = DEFAULT_OPTIONS) {
+    const {
+      configPath: { technologyPath, specialtiesPath },
+    } = options;
+
+    // TODO:необходимо позволить конфигурировать соединение с базой данных для клиента
     this.pool = new Pool(DB_CONFIG);
     this.options = options;
-    this.categoryMapping = loadCategoryMapping(options);
+    this.technologyMapping = loadYAMLContent<TechnologyMapping>(technologyPath);
+    this.specialtyMapping = loadYAMLContent<SpecialtyMapping>(specialtiesPath);
   }
 
   /**
@@ -39,7 +36,7 @@ export class DocsScanner {
    * @example
    * ```typescript
    * const items = await scanner.scanDocs('./my-docs');
-   * 
+   *
    * console.log(`Найдено ${items.length} документов`);
    * ```
    *
@@ -56,8 +53,13 @@ export class DocsScanner {
 
     const items: DocItem[] = [];
 
-    await scanDirectory({dirPath: scanPath, items, categoryMapping: this.categoryMapping});
-  
+    await scanDirectory({
+      dirPath: scanPath,
+      items,
+      technologyMapping: this.technologyMapping,
+      specialtyMapping: this.specialtyMapping,
+    });
+
     return items;
   }
 

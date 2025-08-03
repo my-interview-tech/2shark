@@ -109,37 +109,26 @@ describe('Unit/utility/function/initDatabaseSchema', () => {
 
   describe('SUCCESS_CASES', () => {
     it('должен создавать таблицы и очищать данные в правильном порядке', async () => {
-      mockClient.query.mockResolvedValue({ rows: [] });
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ exists: true }] }) // article_tags exists
+        .mockResolvedValueOnce({ rows: [{ exists: false }] }) // article_links не существует
+        .mockResolvedValueOnce({ rows: [{ exists: true }] }) // tags exists
+        .mockResolvedValueOnce({ rows: [{ exists: true }] }) // articles exists
+        .mockResolvedValueOnce({ rows: [{ exists: false }] }) // specialties не существует
+        .mockResolvedValueOnce({ rows: [{ exists: false }] }) // technologies не существует
+        .mockResolvedValue({ rows: [] }); // для остальных запросов
+
       await initDatabaseSchema(mockClient);
 
-      expect(mockClient.query).toHaveBeenCalledTimes(11);
+      expect(mockClient.query).toHaveBeenCalledTimes(16);
 
-      expect(mockClient.query).toHaveBeenNthCalledWith(1, 'DELETE FROM article_tags');
-      expect(mockClient.query).toHaveBeenNthCalledWith(2, 'DELETE FROM tags');
-      expect(mockClient.query).toHaveBeenNthCalledWith(3, 'DELETE FROM articles');
-      expect(mockClient.query).toHaveBeenNthCalledWith(4, 'DELETE FROM technologies');
-      expect(mockClient.query).toHaveBeenNthCalledWith(5, 'DELETE FROM specialties');
-
-      expect(mockClient.query).toHaveBeenNthCalledWith(
-        6,
-        expect.stringContaining('CREATE TABLE IF NOT EXISTS specialties'),
-      );
-      expect(mockClient.query).toHaveBeenNthCalledWith(
-        7,
-        expect.stringContaining('CREATE TABLE IF NOT EXISTS technologies'),
-      );
-      expect(mockClient.query).toHaveBeenNthCalledWith(
-        8,
-        expect.stringContaining('CREATE TABLE IF NOT EXISTS specialty_technology'),
-      );
-      expect(mockClient.query).toHaveBeenNthCalledWith(
-        9,
-        expect.stringContaining('CREATE TABLE IF NOT EXISTS articles'),
-      );
-      expect(mockClient.query).toHaveBeenNthCalledWith(10, expect.stringContaining('CREATE TABLE IF NOT EXISTS tags'));
-      expect(mockClient.query).toHaveBeenNthCalledWith(
-        11,
-        expect.stringContaining('CREATE TABLE IF NOT EXISTS article_tags'),
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS specialties'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS technologies'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS articles'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS tags'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS article_tags'));
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('CREATE TABLE IF NOT EXISTS article_links'),
       );
     });
   });

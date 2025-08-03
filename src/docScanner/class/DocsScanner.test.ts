@@ -1,7 +1,7 @@
 import { DocsScanner } from './DocsScanner';
-import { loadCategoryMapping, scanDirectory } from '../lib';
+import { loadYAMLContent, scanDirectory } from '../lib';
 
-jest.mock('../lib/loadCategoryMapping/loadCategoryMapping');
+jest.mock('../lib/loadYAMLContent');
 jest.mock('../lib/scanDirectory/scanDirectory');
 
 jest.mock('pg', () => ({
@@ -13,13 +13,19 @@ jest.mock('fs/promises', () => ({
   access: jest.fn(),
 }));
 
-const mockLoadCategoryMapping = loadCategoryMapping as jest.MockedFunction<typeof loadCategoryMapping>;
+const mockLoadCategoryMapping = loadYAMLContent as jest.MockedFunction<typeof loadYAMLContent>;
 const mockScanDirectory = scanDirectory as jest.MockedFunction<typeof scanDirectory>;
+const mockLoadSpecialties = loadYAMLContent as jest.MockedFunction<typeof loadYAMLContent>;
 const mockFsAccess = require('fs/promises').access as jest.MockedFunction<any>;
 
 const mockCategoryMapping = {
   react: { specialty: 'Frontend', priority: 1, description: 'React framework' },
   typescript: { specialty: 'Frontend', priority: 2, description: 'TypeScript language' },
+};
+
+const mockSpecialtyMapping = {
+  Frontend: { priority: 1, description: 'Frontend development' },
+  Backend: { priority: 2, description: 'Backend development' },
 };
 
 describe('Unit/class/DocsScanner', () => {
@@ -28,26 +34,34 @@ describe('Unit/class/DocsScanner', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockLoadCategoryMapping.mockReturnValue(mockCategoryMapping);
+    mockLoadSpecialties.mockReturnValue(mockSpecialtyMapping);
     mockFsAccess.mockResolvedValue(undefined);
-    mockScanDirectory.mockResolvedValue(undefined);
+    mockScanDirectory.mockImplementation(async (params) => {
+      // Не добавляем элементы в items, так как это делается в тестах отдельно
+    });
   });
 
   describe('method/constructor', () => {
     it('должен создать экземпляр с дефолтными настройками', () => {
       scanner = new DocsScanner();
 
-      expect(mockLoadCategoryMapping).toHaveBeenCalledWith({});
+      expect(mockLoadCategoryMapping).toHaveBeenCalledWith(expect.any(String));
+      expect(mockLoadSpecialties).toHaveBeenCalledWith(expect.any(String));
     });
 
     it('должен создать экземпляр с кастомными настройками', () => {
       const options = {
         docsPath: './custom-docs',
-        configPath: './custom-config.yaml',
+        configPath: {
+          technologyPath: './custom-config.yaml',
+          specialtiesPath: './custom-specialties.yaml',
+        },
       };
 
       scanner = new DocsScanner(options);
 
-      expect(mockLoadCategoryMapping).toHaveBeenCalledWith(options);
+      expect(mockLoadCategoryMapping).toHaveBeenCalledWith('./custom-config.yaml');
+      expect(mockLoadSpecialties).toHaveBeenCalledWith('./custom-specialties.yaml');
     });
   });
 
@@ -67,6 +81,8 @@ describe('Unit/class/DocsScanner', () => {
           priority: 1,
           description: 'Test description',
           tags: ['test'],
+          info: [],
+          file_hash: 'hash1',
           created_at: new Date(),
           updated_at: new Date(),
         },
@@ -79,6 +95,8 @@ describe('Unit/class/DocsScanner', () => {
           priority: 2,
           description: 'Test description 2',
           tags: ['test'],
+          info: [],
+          file_hash: 'hash2',
           created_at: new Date(),
           updated_at: new Date(),
         },
@@ -93,9 +111,10 @@ describe('Unit/class/DocsScanner', () => {
 
       expect(mockFsAccess).toHaveBeenCalledWith(expect.stringContaining('docs'));
       expect(mockScanDirectory).toHaveBeenCalledWith({
-        dirPath: expect.stringContaining('docs'),
+        dirPath: './docs',
         items: expect.any(Array),
-        categoryMapping: mockCategoryMapping,
+        technologyMapping: expect.any(Object),
+        specialtyMapping: expect.any(Object),
       });
       expect(result).toEqual(mockItems);
     });
@@ -112,6 +131,8 @@ describe('Unit/class/DocsScanner', () => {
           priority: 1,
           description: 'Test description',
           tags: ['test'],
+          info: [],
+          file_hash: 'hash1',
           created_at: new Date(),
           updated_at: new Date(),
         },
@@ -128,13 +149,20 @@ describe('Unit/class/DocsScanner', () => {
       expect(mockScanDirectory).toHaveBeenCalledWith({
         dirPath: customPath,
         items: expect.any(Array),
-        categoryMapping: mockCategoryMapping,
+        technologyMapping: expect.any(Object),
+        specialtyMapping: expect.any(Object),
       });
       expect(result).toEqual(mockItems);
     });
 
     it('должен использовать docsPath из options', async () => {
-      const options = { docsPath: './options-docs' };
+      const options = {
+        docsPath: './options-docs',
+        configPath: {
+          technologyPath: './config/category-mapping.yaml',
+          specialtiesPath: './config/specialties.yaml',
+        },
+      };
       scanner = new DocsScanner(options);
       const mockItems = [
         {
@@ -146,6 +174,8 @@ describe('Unit/class/DocsScanner', () => {
           priority: 1,
           description: 'Test description',
           tags: ['test'],
+          info: [],
+          file_hash: 'hash1',
           created_at: new Date(),
           updated_at: new Date(),
         },
@@ -162,7 +192,8 @@ describe('Unit/class/DocsScanner', () => {
       expect(mockScanDirectory).toHaveBeenCalledWith({
         dirPath: './options-docs',
         items: expect.any(Array),
-        categoryMapping: mockCategoryMapping,
+        technologyMapping: expect.any(Object),
+        specialtyMapping: expect.any(Object),
       });
       expect(result).toEqual(mockItems);
     });
@@ -188,7 +219,10 @@ describe('Unit/class/DocsScanner', () => {
     it('должен обработать полный цикл сканирования', async () => {
       const options = {
         docsPath: './test-docs',
-        configPath: './test-config.yaml',
+        configPath: {
+          technologyPath: './test-config.yaml',
+          specialtiesPath: './test-specialties.yaml',
+        },
       };
 
       scanner = new DocsScanner(options);
@@ -203,6 +237,8 @@ describe('Unit/class/DocsScanner', () => {
           priority: 1,
           description: 'Test description',
           tags: ['test'],
+          info: [],
+          file_hash: 'hash1',
           created_at: new Date(),
           updated_at: new Date(),
         },
@@ -215,6 +251,8 @@ describe('Unit/class/DocsScanner', () => {
           priority: 2,
           description: 'Test description 2',
           tags: ['test'],
+          info: [],
+          file_hash: 'hash2',
           created_at: new Date(),
           updated_at: new Date(),
         },

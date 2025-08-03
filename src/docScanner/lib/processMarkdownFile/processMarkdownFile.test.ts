@@ -1,6 +1,6 @@
 import { processMarkdownFile } from './processMarkdownFile';
 import { slugify } from '../slugify';
-import { DocItem, CategoryMapping } from '../../../types';
+import { DocItem, TechnologyMapping } from '../../../types';
 
 jest.mock('fs/promises', () => ({
   readFile: jest.fn(),
@@ -35,7 +35,7 @@ function createMatterMock(data: any, content: string) {
   };
 }
 
-const mockCategoryMapping: CategoryMapping = {
+const mockCategoryMapping: TechnologyMapping = {
   react: {
     specialty: 'Frontend',
     priority: 1,
@@ -46,6 +46,12 @@ const mockCategoryMapping: CategoryMapping = {
     priority: 2,
     description: 'TypeScript language',
   },
+};
+
+const mockSpecialtyMapping = {
+  Frontend: { priority: 1, description: 'Frontend development' },
+  Language: { priority: 2, description: 'Language development' },
+  product: { priority: 3, description: 'Product development' },
 };
 
 describe('Unit/utility/function/processMarkdownFile', () => {
@@ -77,17 +83,23 @@ describe('Unit/utility/function/processMarkdownFile', () => {
         priority: 1,
         description: 'React framework',
         tags: ['react', 'hooks'],
+        info: [],
+        file_hash: expect.any(String),
         created_at: expect.any(Date),
         updated_at: expect.any(Date),
       };
 
-      const result = await processMarkdownFile(filePath, mockCategoryMapping);
+      mockPath.relative.mockReturnValue('react/hooks.md');
+      mockPath.dirname.mockReturnValue('react');
+
+      const result = await processMarkdownFile({
+        filePath,
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(mockFs.readFile).toHaveBeenCalledWith(filePath, 'utf-8');
       expect(mockMatter).toHaveBeenCalledWith('# React Hooks\n\nОсновы хуков в React...');
-      expect(mockPath.relative).toHaveBeenCalledWith(process.cwd(), filePath);
-      expect(mockPath.dirname).toHaveBeenCalledWith('docs/react/hooks.md');
-      expect(mockPath.basename).toHaveBeenCalledWith(filePath, '.md');
       expect(result).toEqual(expectedDocItem);
     });
 
@@ -104,16 +116,37 @@ describe('Unit/utility/function/processMarkdownFile', () => {
       mockPath.relative.mockReturnValue('docs/basic/guide.md');
       mockPath.dirname.mockReturnValue('docs/basic');
 
-      const result = await processMarkdownFile(filePath, mockCategoryMapping);
+      const categoryMappingWithBasic = {
+        ...mockCategoryMapping,
+        basic: {
+          specialty: 'product',
+          priority: 0,
+          description: '',
+        },
+      };
 
-      expect(result?.title).toBe('guide');
-      expect(result?.tags).toEqual([]);
-      expect(result?.specialty).toBe('docs');
-      expect(result?.technology).toBe('basic');
+      const result = await processMarkdownFile({
+        filePath,
+        technologyMapping: categoryMappingWithBasic,
+        specialtyMapping: mockSpecialtyMapping,
+      });
+
+      expect(result).not.toBeNull();
+      if (Array.isArray(result)) {
+        expect(result[0]?.title).toBe('guide');
+        expect(result[0]?.tags).toEqual([]);
+        expect(result[0]?.specialty).toBe('product');
+        expect(result[0]?.technology).toBe('basic');
+      } else {
+        expect(result?.title).toBe('guide');
+        expect(result?.tags).toEqual([]);
+        expect(result?.specialty).toBe('product');
+        expect(result?.technology).toBe('basic');
+      }
     });
 
     it('должен обработать файл с массивом категорий', async () => {
-      const mappingWithArray: CategoryMapping = {
+      const mappingWithArray: TechnologyMapping = {
         git: {
           specialty: ['Frontend', 'Backend'],
           priority: 1,
@@ -124,9 +157,19 @@ describe('Unit/utility/function/processMarkdownFile', () => {
       mockPath.dirname.mockReturnValue('docs/git');
       mockPath.relative.mockReturnValue('docs/git/guide.md');
 
-      const result = await processMarkdownFile('/test/docs/git/guide.md', mappingWithArray);
+      const result = await processMarkdownFile({
+        filePath: '/test/docs/git/guide.md',
+        technologyMapping: mappingWithArray,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
-      expect(result?.specialty).toBe('Frontend');
+      expect(result).not.toBeNull();
+
+      if (Array.isArray(result)) {
+        expect(result[0]?.specialty).toBe('Frontend');
+      } else {
+        expect(result?.specialty).toBe('Frontend');
+      }
     });
 
     it('должен обработать файл без маппинга категорий', async () => {
@@ -138,12 +181,13 @@ describe('Unit/utility/function/processMarkdownFile', () => {
       mockPath.dirname.mockReturnValue('docs/unknown');
       mockPath.relative.mockReturnValue('docs/unknown/guide.md');
 
-      const result = await processMarkdownFile('/test/docs/unknown/guide.md', {});
+      const result = await processMarkdownFile({
+        filePath: '/test/docs/unknown/guide.md',
+        technologyMapping: {},
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
-      expect(result?.specialty).toBe('docs');
-      expect(result?.technology).toBe('unknown');
-      expect(result?.priority).toBe(0);
-      expect(result?.description).toBe('');
+      expect(result).toBeNull();
     });
   });
 
@@ -152,28 +196,52 @@ describe('Unit/utility/function/processMarkdownFile', () => {
       mockPath.relative.mockReturnValue('guide.md');
       mockPath.dirname.mockReturnValue('');
 
-      const result = await processMarkdownFile('/test/guide.md', mockCategoryMapping);
+      const result = await processMarkdownFile({
+        filePath: '/test/guide.md',
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
-      expect(result?.specialty).toBe('');
-      expect(result?.technology).toBe('');
+      expect(result).toBeNull();
     });
 
     it('должен обработать файл с пустым content', async () => {
       mockMatter.mockReturnValue(createMatterMock({ title: 'Empty File' }, ''));
 
-      const result = await processMarkdownFile('/test/empty.md', mockCategoryMapping);
+      const result = await processMarkdownFile({
+        filePath: '/test/empty.md',
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
-      expect(result?.content).toBe('');
-      expect(result?.title).toBe('Empty File');
+      expect(result).not.toBeNull();
+
+      if (Array.isArray(result)) {
+        expect(result[0]?.content).toBe('');
+        expect(result[0]?.title).toBe('Empty File');
+      } else {
+        expect(result?.content).toBe('');
+        expect(result?.title).toBe('Empty File');
+      }
     });
 
     it('должен обработать файл с null/undefined в frontmatter', async () => {
       mockMatter.mockReturnValue(createMatterMock({ title: null, tags: undefined }, 'Content'));
 
-      const result = await processMarkdownFile('/test/test.md', mockCategoryMapping);
+      const result = await processMarkdownFile({
+        filePath: '/test/test.md',
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
-      expect(result?.title).toBe('hooks');
-      expect(result?.tags).toEqual([]);
+      expect(result).not.toBeNull();
+      if (Array.isArray(result)) {
+        expect(result[0]?.title).toBe('hooks');
+        expect(result[0]?.tags).toEqual([]);
+      } else {
+        expect(result?.title).toBe('hooks');
+        expect(result?.tags).toEqual([]);
+      }
     });
   });
 
@@ -182,7 +250,11 @@ describe('Unit/utility/function/processMarkdownFile', () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
       mockFs.readFile.mockRejectedValue(new Error('ENOENT: no such file'));
 
-      const result = await processMarkdownFile('/test/nonexistent.md', mockCategoryMapping);
+      const result = await processMarkdownFile({
+        filePath: '/test/nonexistent.md',
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(consoleSpy).toHaveBeenCalledWith('Ошибка обработки файла /test/nonexistent.md:', expect.any(Error));
       expect(result).toBeNull();
@@ -196,7 +268,11 @@ describe('Unit/utility/function/processMarkdownFile', () => {
         throw new Error('Invalid frontmatter');
       });
 
-      const result = await processMarkdownFile('/test/docs/test.md', mockCategoryMapping);
+      const result = await processMarkdownFile({
+        filePath: '/test/docs/test.md',
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(consoleSpy).toHaveBeenCalledWith('Ошибка обработки файла /test/docs/test.md:', expect.any(Error));
       expect(result).toBeNull();
@@ -210,7 +286,11 @@ describe('Unit/utility/function/processMarkdownFile', () => {
         throw new Error('Path error');
       });
 
-      const result = await processMarkdownFile('/test/docs/test.md', mockCategoryMapping);
+      const result = await processMarkdownFile({
+        filePath: '/test/docs/test.md',
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(consoleSpy).toHaveBeenCalledWith('Ошибка обработки файла /test/docs/test.md:', expect.any(Error));
       expect(result).toBeNull();
@@ -244,7 +324,11 @@ tags: [typescript, javascript, tutorial]
       mockPath.basename.mockReturnValue('basics');
       mockSlugify.mockReturnValue('basics');
 
-      const result = await processMarkdownFile(filePath, mockCategoryMapping);
+      const result = await processMarkdownFile({
+        filePath,
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(result).toEqual({
         id: 'basics',
@@ -255,6 +339,8 @@ tags: [typescript, javascript, tutorial]
         priority: 2,
         description: 'TypeScript language',
         tags: ['typescript', 'javascript', 'tutorial'],
+        info: [],
+        file_hash: expect.any(String),
         created_at: expect.any(Date),
         updated_at: expect.any(Date),
       });

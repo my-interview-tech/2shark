@@ -1,4 +1,4 @@
-import { DocItem, CategoryMapping } from '../../../types';
+import { DocItem, TechnologyMapping, SpecialtyMapping } from '../../../types';
 
 export type ScanDirectoryParams = {
   /** Путь к директории для сканирования */
@@ -6,7 +6,9 @@ export type ScanDirectoryParams = {
   /** Массив для накопления обработанных документов */
   items: DocItem[];
   /** Маппинг категорий для определения приоритетов */
-  categoryMapping: CategoryMapping;
+  technologyMapping: TechnologyMapping;
+  /** Маппинг специальностей */
+  specialtyMapping: SpecialtyMapping;
 };
 
 export type ProcessFileResult = {

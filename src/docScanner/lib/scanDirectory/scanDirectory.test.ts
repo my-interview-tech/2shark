@@ -1,5 +1,5 @@
 import { scanDirectory } from './scanDirectory';
-import { DocItem, CategoryMapping } from '../../../types';
+import { DocItem, TechnologyMapping } from '../../../types';
 import { processMarkdownFile } from '../processMarkdownFile';
 
 jest.mock('fs/promises', () => ({
@@ -18,12 +18,17 @@ const mockFs = require('fs/promises') as jest.Mocked<typeof import('fs/promises'
 const mockPath = require('path') as jest.Mocked<typeof import('path')>;
 const mockProcessMarkdownFile = processMarkdownFile as jest.MockedFunction<typeof processMarkdownFile>;
 
-const mockCategoryMapping: CategoryMapping = {
+const mockCategoryMapping: TechnologyMapping = {
   react: {
     specialty: 'Frontend',
     priority: 1,
     description: 'React framework',
   },
+};
+
+const mockSpecialtyMapping = {
+  Frontend: { priority: 1, description: 'Frontend development' },
+  Test: { priority: 2, description: 'Test development' },
 };
 
 const mockDocItem: DocItem = {
@@ -35,6 +40,8 @@ const mockDocItem: DocItem = {
   priority: 1,
   description: 'Test description',
   tags: ['test'],
+  info: [],
+  file_hash: 'test-hash',
   created_at: new Date(),
   updated_at: new Date(),
 };
@@ -59,7 +66,12 @@ describe('Unit/utility/function/scanDirectory', () => {
         .mockResolvedValueOnce(mockDocItem)
         .mockResolvedValueOnce({ ...mockDocItem, id: 'typescript-doc' });
 
-      await scanDirectory({ dirPath, items, categoryMapping: mockCategoryMapping });
+      await scanDirectory({
+        dirPath,
+        items,
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(mockFs.readdir).toHaveBeenCalledWith(dirPath, { withFileTypes: true });
       expect(mockProcessMarkdownFile).toHaveBeenCalledTimes(2);
@@ -81,7 +93,12 @@ describe('Unit/utility/function/scanDirectory', () => {
         .mockResolvedValueOnce(mockDocItem)
         .mockResolvedValueOnce({ ...mockDocItem, id: 'usestate-doc' });
 
-      await scanDirectory({ dirPath, items, categoryMapping: mockCategoryMapping });
+      await scanDirectory({
+        dirPath,
+        items,
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(mockFs.readdir).toHaveBeenCalledTimes(2);
       expect(mockProcessMarkdownFile).toHaveBeenCalledTimes(2);
@@ -99,7 +116,12 @@ describe('Unit/utility/function/scanDirectory', () => {
         { name: 'config.json', isDirectory: () => false, isFile: () => true } as any,
       ]);
 
-      await scanDirectory({ dirPath, items, categoryMapping: mockCategoryMapping });
+      await scanDirectory({
+        dirPath,
+        items,
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(mockProcessMarkdownFile).not.toHaveBeenCalled();
       expect(items).toHaveLength(0);
@@ -111,7 +133,12 @@ describe('Unit/utility/function/scanDirectory', () => {
 
       mockFs.readdir.mockResolvedValue([]);
 
-      await scanDirectory({ dirPath, items, categoryMapping: mockCategoryMapping });
+      await scanDirectory({
+        dirPath,
+        items,
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(mockProcessMarkdownFile).not.toHaveBeenCalled();
       expect(items).toHaveLength(0);
@@ -132,7 +159,12 @@ describe('Unit/utility/function/scanDirectory', () => {
         .mockResolvedValueOnce(mockDocItem)
         .mockResolvedValueOnce({ ...mockDocItem, id: 'typescript-doc' });
 
-      await scanDirectory({ dirPath, items, categoryMapping: mockCategoryMapping });
+      await scanDirectory({
+        dirPath,
+        items,
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(mockProcessMarkdownFile).toHaveBeenCalledTimes(2);
       expect(items).toHaveLength(2);
@@ -146,9 +178,14 @@ describe('Unit/utility/function/scanDirectory', () => {
 
       mockFs.readdir.mockRejectedValue(new Error('Permission denied'));
 
-      await expect(scanDirectory({ dirPath, items, categoryMapping: mockCategoryMapping })).rejects.toThrow(
-        'Permission denied',
-      );
+      await expect(
+        scanDirectory({
+          dirPath,
+          items,
+          technologyMapping: mockCategoryMapping,
+          specialtyMapping: mockSpecialtyMapping,
+        }),
+      ).rejects.toThrow('Permission denied');
     });
 
     it('должен обработать ошибку при обработке файла', async () => {
@@ -159,7 +196,12 @@ describe('Unit/utility/function/scanDirectory', () => {
 
       mockProcessMarkdownFile.mockResolvedValue(null);
 
-      await scanDirectory({ dirPath, items, categoryMapping: mockCategoryMapping });
+      await scanDirectory({
+        dirPath,
+        items,
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(mockProcessMarkdownFile).toHaveBeenCalledTimes(1);
       expect(items).toHaveLength(0);
@@ -180,7 +222,12 @@ describe('Unit/utility/function/scanDirectory', () => {
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ ...mockDocItem, id: 'react-doc' });
 
-      await scanDirectory({ dirPath, items, categoryMapping: mockCategoryMapping });
+      await scanDirectory({
+        dirPath,
+        items,
+        technologyMapping: mockCategoryMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
 
       expect(mockProcessMarkdownFile).toHaveBeenCalledTimes(3);
       expect(items).toHaveLength(2);
