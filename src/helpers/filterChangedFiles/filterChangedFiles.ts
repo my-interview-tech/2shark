@@ -1,8 +1,5 @@
 import { DocItem } from '../../types';
-
-// todo: переделать на использование из parseDatabase
-import { getFileHashes } from '../getFileHashes/getFileHashes';
-// import fs from "fs/promises"
+import { getFileHashes } from '../getFileHashes';
 
 /**
  * Фильтрует документы, оставляя только те, которые изменились
@@ -20,15 +17,15 @@ export async function filterChangedFiles(documents: DocItem[]): Promise<DocItem[
   try {
     const existingHashes = await getFileHashes();
 
-    console.log(`🔍 Отладка: найдено ${existingHashes.size} хешей в базе данных`);
+    console.log(`Отладка: найдено ${existingHashes.size} хешей в базе данных`);
 
     if (existingHashes.size > 0) {
-      console.log(`🔍 Примеры хешей в БД:`);
+      console.log(`Примеры хешей в БД:`);
       let count = 0;
 
       for (const [slug, hash] of existingHashes.entries()) {
         if (count < 3) {
-          console.log(`   ${slug}: ${hash.substring(0, 10)}...`);
+          console.log(`${slug}: ${hash?.substring(0, 10) || 'null'}...`);
           count++;
         }
       }
@@ -38,6 +35,7 @@ export async function filterChangedFiles(documents: DocItem[]): Promise<DocItem[
     let unchangedCount = 0;
 
     let debugCount = 0;
+  
     for (const doc of documents) {
       let existingHash: string | undefined;
 
@@ -52,7 +50,7 @@ export async function filterChangedFiles(documents: DocItem[]): Promise<DocItem[
         changedDocuments.push(doc);
 
         if (debugCount < 3) {
-          console.log(`🔍 Отладка: новый файл ${doc.id} (не найден в БД)`);
+          console.log(`Отладка: новый файл ${doc.id} (не найден в БД)`);
           debugCount++;
         }
         continue;
@@ -67,17 +65,18 @@ export async function filterChangedFiles(documents: DocItem[]): Promise<DocItem[
       changedDocuments.push(doc);
 
       if (debugCount < 3) {
-        console.log(`🔍 Отладка: измененный файл ${doc.id}`);
-        console.log(`   Хеш в БД: ${existingHash.substring(0, 10)}...`);
-        console.log(`   Новый хеш: ${doc.file_hash.substring(0, 10)}...`);
+        console.log(`Отладка: измененный файл ${doc.id}`);
+        console.log(`Хеш в БД: ${existingHash.substring(0, 10)}...`);
+        console.log(`Новый хеш: ${doc.file_hash.substring(0, 10)}...`);
+
         debugCount++;
       }
     }
 
-    console.log(`📊 Статистика изменений:`);
-    console.log(`   - Измененных файлов: ${changedDocuments.length}`);
-    console.log(`   - Неизмененных файлов: ${unchangedCount}`);
-    console.log(`   - Всего файлов: ${documents.length}`);
+    console.log(`Статистика изменений:`);
+    console.log(`- Измененных файлов: ${changedDocuments.length}`);
+    console.log(`- Неизмененных файлов: ${unchangedCount}`);
+    console.log(`- Всего файлов: ${documents.length}`);
 
     return changedDocuments;
   } catch (error) {

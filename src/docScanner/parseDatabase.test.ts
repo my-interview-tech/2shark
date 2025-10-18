@@ -3,7 +3,7 @@ import { DocsScanner } from './class';
 import { DocItem, ScanOptions } from '../types';
 import { DEFAULT_OPTIONS } from './config';
 
-jest.mock('./class/DocsScanner', () => ({
+jest.mock('./class', () => ({
   DocsScanner: jest.fn(),
 }));
 

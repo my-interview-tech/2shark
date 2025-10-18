@@ -201,23 +201,21 @@ export interface DatabaseConfig {
   password: string;
 }
 
-export interface ParseDbOptions {
+type BaseOptions = {
   path: string;
   config: string;
+  configDir?: string;
+};
+
+export type ParseDbOptions = BaseOptions & {
   clear: boolean;
   checkOnly: boolean;
-  configDir?: string;
-}
+};
 
-export interface CheckUpdatesOptions {
-  path: string;
-  config: string;
-  configDir?: string;
-}
+export type CheckUpdatesOptions = BaseOptions & {
+  checkOnly: boolean;
+};
 
-export interface UpdateArticlesOptions {
-  path: string;
-  config: string;
+export type UpdateArticlesOptions = BaseOptions & {
   force: boolean;
-  configDir?: string;
-}
+};

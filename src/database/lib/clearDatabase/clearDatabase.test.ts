@@ -1,5 +1,7 @@
-import { clearDatabase, clearDatabaseSchema } from './clearDatabase';
+import { clearDatabase } from './clearDatabase';
+import { clearDatabaseSchema } from './schema';
 import { DatabaseConfig } from '../../../types';
+import { DESCRIBE_CASES } from '../../../helpers';
 
 jest.mock('pg', () => ({
   Pool: jest.fn().mockImplementation(() => ({
@@ -28,7 +30,7 @@ describe('Unit/utility/function/clearDatabase', () => {
     mockPool.mockImplementation(() => mockPoolInstance as any);
   });
 
-  describe('SUCCESS_CASES', () => {
+  describe(DESCRIBE_CASES.SUCCESS, () => {
     it('должен очистить базу данных с дефолтными настройками', async () => {
       mockClient.query.mockResolvedValue({ rows: [] });
 
@@ -80,7 +82,7 @@ describe('Unit/utility/function/clearDatabase', () => {
     });
   });
 
-  describe('EDGE_CASES', () => {
+  describe(DESCRIBE_CASES.EDGE, () => {
     it('должен обработать пустую конфигурацию', async () => {
       mockClient.query.mockResolvedValue({ rows: [] });
 
@@ -115,25 +117,29 @@ describe('Unit/utility/function/clearDatabaseSchema', () => {
     jest.clearAllMocks();
   });
 
-  describe('SUCCESS_CASES', () => {
+  describe(DESCRIBE_CASES.SUCCESS, () => {
     it('должен очистить все таблицы в правильном порядке', async () => {
       mockClient.query.mockResolvedValue({ rows: [] });
 
       await clearDatabaseSchema(mockClient);
 
-      expect(mockClient.query).toHaveBeenCalledTimes(5);
-      expect(mockClient.query).toHaveBeenNthCalledWith(1, 'DELETE FROM article_tags');
-      expect(mockClient.query).toHaveBeenNthCalledWith(2, 'DELETE FROM tags');
-      expect(mockClient.query).toHaveBeenNthCalledWith(3, 'DELETE FROM articles');
-      expect(mockClient.query).toHaveBeenNthCalledWith(4, 'DELETE FROM technologies');
-      expect(mockClient.query).toHaveBeenNthCalledWith(5, 'DELETE FROM specialties');
+      expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+      expect(mockClient.query).toHaveBeenCalledWith('DELETE FROM article_tags');
+      expect(mockClient.query).toHaveBeenCalledWith('DELETE FROM tags');
+      expect(mockClient.query).toHaveBeenCalledWith('DELETE FROM articles');
+      expect(mockClient.query).toHaveBeenCalledWith('DELETE FROM technologies');
+      expect(mockClient.query).toHaveBeenCalledWith('DELETE FROM specialties');
+      expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
     });
   });
 
-  describe('ERROR_CASES', () => {
+  describe(DESCRIBE_CASES.ERROR, () => {
     it('должен обработать ошибку при очистке', async () => {
       const error = new Error('Database error');
-      mockClient.query.mockRejectedValue(error);
+      mockClient.query.mockImplementation((sql: string) => {
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return Promise.resolve({ rows: [] });
+        return Promise.reject(error);
+      });
 
       await expect(clearDatabaseSchema(mockClient)).rejects.toThrow('Database error');
     });

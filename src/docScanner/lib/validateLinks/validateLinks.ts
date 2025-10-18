@@ -6,38 +6,17 @@
  *
  * @param info - Массив ссылок из frontmatter
  * @returns Массив валидированных внешних ссылок
- *
- * @example
- * ```typescript
- *
- * const links = [
- *   "[[062 Событийный цикл. Микрозадачи и макрозадачи|Событийный цикл? Микрозадачи и макрозадачи]]",
- *   "https://habr.com/ru/post/461401/",
- *   "[[071 Объяснение работы EventLoop в JavaScript|Объяснение работы EventLoop в JavaScript]]"
- * ];
- *
- * const validLinks = validateLinks(links);
- * // Результат: ["https://habr.com/ru/post/461401/"]
- * ```
  */
-export function validateLinks(info: string[] | undefined): string[] {
-  if (!info || !Array.isArray(info)) {
-    return [];
-  }
+export const validateLinks = (info: string[] | undefined): string[] => {
+  if (!Array.isArray(info) || !info.length) return [];
 
   return info.filter((link) => {
-    const trimmedLink = link.trim();
-
-    if (!trimmedLink) {
-      return false;
-    }
-
-    if (trimmedLink.startsWith('[[')) {
-      return false;
-    }
+    const trimmed = link.trim();
+  
+    if (!trimmed || trimmed.startsWith('[[')) return false;
 
     try {
-      const url = new URL(trimmedLink);
+      const url = new URL(trimmed);
 
       return url.protocol === 'http:' || url.protocol === 'https:';
     } catch {

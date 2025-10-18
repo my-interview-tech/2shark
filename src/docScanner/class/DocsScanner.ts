@@ -20,7 +20,7 @@ export class DocsScanner {
       configPath: { technologyPath, specialtiesPath },
     } = options;
 
-    // TODO:необходимо позволить конфигурировать соединение с базой данных для клиента
+    // TODO: необходимо позволить конфигурировать соединение с базой данных для клиента
     this.pool = new Pool(DB_CONFIG);
     this.options = options;
     this.technologyMapping = loadYAMLContent<TechnologyMapping>(technologyPath);

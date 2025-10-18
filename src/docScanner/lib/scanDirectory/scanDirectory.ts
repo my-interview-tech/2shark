@@ -23,7 +23,6 @@ export async function scanDirectory({
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
 
-    // todo: рефакторинг, избавиться от вложенности if.. else if
     if (entry.isDirectory()) {
       await scanDirectory({ dirPath: fullPath, items, technologyMapping, specialtyMapping });
     } else if (entry.isFile() && entry.name.endsWith('.md')) {

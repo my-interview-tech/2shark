@@ -59,8 +59,16 @@ describe('Unit/utility/function/processMarkdownFile', () => {
     jest.clearAllMocks();
     mockPath.relative.mockReturnValue('docs/react/hooks.md');
     mockPath.dirname.mockReturnValue('docs/react');
-    mockPath.basename.mockReturnValue('hooks');
-    mockSlugify.mockReturnValue('hooks');
+    mockPath.basename.mockImplementation((filePath: string, ext?: string) => {
+      const basename = filePath.split('/').pop() || '';
+      return ext ? basename.replace(new RegExp(`\\${ext}$`), '') : basename;
+    });
+    mockSlugify.mockImplementation((text: string) =>
+      text
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, ''),
+    );
     mockMatter.mockReturnValue(
       createMatterMock(
         { title: 'React Hooks Guide', tags: ['react', 'hooks'] },
@@ -75,7 +83,7 @@ describe('Unit/utility/function/processMarkdownFile', () => {
       const filePath = '/test/docs/react/hooks.md';
 
       const expectedDocItem: DocItem = {
-        id: 'hooks',
+        id: expect.stringMatching(/^react-hooks/),
         title: 'React Hooks Guide',
         content: '# React Hooks\n\nОсновы хуков в React...',
         specialty: 'Frontend',
@@ -91,6 +99,7 @@ describe('Unit/utility/function/processMarkdownFile', () => {
 
       mockPath.relative.mockReturnValue('react/hooks.md');
       mockPath.dirname.mockReturnValue('react');
+      mockPath.basename.mockReturnValue('hooks');
 
       const result = await processMarkdownFile({
         filePath,
@@ -236,10 +245,10 @@ describe('Unit/utility/function/processMarkdownFile', () => {
 
       expect(result).not.toBeNull();
       if (Array.isArray(result)) {
-        expect(result[0]?.title).toBe('hooks');
+        expect(result[0]?.title).toBe('test');
         expect(result[0]?.tags).toEqual([]);
       } else {
-        expect(result?.title).toBe('hooks');
+        expect(result?.title).toBe('test');
         expect(result?.tags).toEqual([]);
       }
     });
@@ -319,10 +328,18 @@ tags: [typescript, javascript, tutorial]
           '# TypeScript Basics\n\nОсновы TypeScript...',
         ),
       );
-      mockPath.relative.mockReturnValue('docs/typescript/basics.md');
-      mockPath.dirname.mockReturnValue('docs/typescript');
-      mockPath.basename.mockReturnValue('basics');
-      mockSlugify.mockReturnValue('basics');
+      mockPath.relative.mockReturnValue('typescript/basics.md');
+      mockPath.dirname.mockReturnValue('typescript');
+      mockPath.basename.mockImplementation((filePath: string, ext?: string) => {
+        const basename = filePath.split('/').pop() || '';
+        return ext ? basename.replace(new RegExp(`\\${ext}$`), '') : basename;
+      });
+      mockSlugify.mockImplementation((text: string) =>
+        text
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, ''),
+      );
 
       const result = await processMarkdownFile({
         filePath,
@@ -331,7 +348,7 @@ tags: [typescript, javascript, tutorial]
       });
 
       expect(result).toEqual({
-        id: 'basics',
+        id: expect.stringMatching(/^typescript-basics/),
         title: 'TypeScript Basics',
         content: '# TypeScript Basics\n\nОсновы TypeScript...',
         specialty: 'Language',

@@ -1,9 +1,12 @@
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
-import { slugify } from '../slugify';
+import { buildUniqueId } from '../buildUniqueId';
 import { validateLinks } from '../validateLinks';
-import { calculateFileHash } from '../fileHash/fileHash';
+import { calculateFileHash } from '../fileHash';
+import { getCleanPathParts } from '../getCleanPathParts';
+import { extractTechnology } from '../extractTechnology';
+import { normalizeSpecialty } from '../normalizeSpecialty';
 import { DocItem } from '../../../types';
 import { TProcessMarkdownFileParams } from './types';
 
@@ -40,51 +43,31 @@ export async function processMarkdownFile({
       return null;
     }
 
-    // TODO: рефакторинг, все что далее вызывает вопросы и инициирует ошибки
+    const cleanPathParts = getCleanPathParts(filePath);
+    const technology = extractTechnology(cleanPathParts);
 
-    const relativePath = path.relative(process.cwd(), filePath);
-    const pathParts = relativePath.split(path.sep);
-
-    // Убираем 'docs' из пути если он есть
-    const cleanPathParts = pathParts[0] === 'docs' ? pathParts.slice(1) : pathParts;
-
-    // Получаем название папки (первый уровень после docs)
-    const folderName = cleanPathParts[0] || 'docs';
-
-    // Убираем префикс с номером (например, "001 Frontend" -> "Frontend")
-    const technology = folderName.replace(/^\d+\s+/, '');
-
-    // Ищем маппинг для этой технологии
     const mapping = technologyMapping[technology];
 
-    if (!mapping) {
-      // console.log(`Пропускаем файл ${filePath}: технология "${technology}" не найдена в конфиге`);
-      return null;
-    }
+    if (!mapping) return null;
 
-    const finalSpecialty = mapping.specialty;
-    const priority = mapping.priority || 0;
-    const description = mapping.description || '';
+    const { specialty: specialtyConfig, priority = 0, description = '' } = mapping as any;
 
-    // Определяем специальность
-    let specialty: string;
-    if (Array.isArray(finalSpecialty)) {
-      specialty = finalSpecialty[0];
-    } else if (typeof finalSpecialty === 'string' && finalSpecialty.includes(',')) {
-      specialty = finalSpecialty.split(',')[0].trim();
-    } else {
-      specialty = finalSpecialty;
-    }
+    const specialty = normalizeSpecialty(specialtyConfig);
 
-    // Проверяем, что специальность существует в конфиге специальностей
     if (specialtyMapping && !specialtyMapping[specialty]) {
-      console.log(`Пропускаем файл ${filePath}: специальность "${specialty}" не найдена в конфиге специальностей`);
+      console.log(
+        `Пропускаем файл ${filePath}: специальность "${specialty}" не найдена в конфиге специальностей`,
+      );
+
       return null;
     }
+
+    const finalId = buildUniqueId(cleanPathParts, filePath);
+    const title = data?.title || path.basename(filePath, '.md');
 
     return {
-      id: slugify(path.basename(filePath, '.md')),
-      title: data?.title || path.basename(filePath, '.md'),
+      id: finalId,
+      title,
       content: markdownContent,
       specialty,
       technology,

@@ -1,5 +1,7 @@
-import { initDatabase, initDatabaseSchema } from './initDatabase';
+import { initDatabase } from './initDatabase';
+import { initDatabaseSchema } from './schema';
 import { DatabaseConfig } from '../../../types';
+import { DESCRIBE_CASES } from '../../../helpers';
 
 jest.mock('pg', () => ({
   Pool: jest.fn().mockImplementation(() => ({
@@ -27,7 +29,7 @@ describe('Unit/utility/function/initDatabase', () => {
     mockPool.mockImplementation(() => mockPoolInstance as any);
   });
 
-  describe('SUCCESS_CASES', () => {
+  describe(DESCRIBE_CASES.SUCCESS, () => {
     it('должен инициализировать базу с дефолтными настройками', async () => {
       await initDatabase();
 
@@ -75,7 +77,7 @@ describe('Unit/utility/function/initDatabase', () => {
     });
   });
 
-  describe('EDGE_CASES', () => {
+  describe(DESCRIBE_CASES.EDGE, () => {
     it('должен обработать пустую конфигурацию', async () => {
       await initDatabase({} as DatabaseConfig);
 
@@ -107,21 +109,40 @@ describe('Unit/utility/function/initDatabaseSchema', () => {
     jest.clearAllMocks();
   });
 
-  describe('SUCCESS_CASES', () => {
+  describe(DESCRIBE_CASES.SUCCESS, () => {
     it('должен создавать таблицы и очищать данные в правильном порядке', async () => {
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [{ exists: true }] }) // article_tags exists
-        .mockResolvedValueOnce({ rows: [{ exists: false }] }) // article_links не существует
-        .mockResolvedValueOnce({ rows: [{ exists: true }] }) // tags exists
-        .mockResolvedValueOnce({ rows: [{ exists: true }] }) // articles exists
-        .mockResolvedValueOnce({ rows: [{ exists: false }] }) // specialties не существует
-        .mockResolvedValueOnce({ rows: [{ exists: false }] }) // technologies не существует
-        .mockResolvedValue({ rows: [] }); // для остальных запросов
+      mockClient.query.mockImplementation((sql: string, params?: unknown[]) => {
+        if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') {
+          return Promise.resolve({ rows: [] });
+        }
+        if (typeof sql === 'string' && sql.includes('information_schema.tables')) {
+          const table = params?.[0] as string;
+          const existsMap: Record<string, boolean> = {
+            article_tags: true,
+            article_links: false,
+            tags: true,
+            articles: true,
+            specialties: false,
+            technologies: false,
+          };
+          return Promise.resolve({ rows: [{ exists: !!existsMap[table] }] });
+        }
+        return Promise.resolve({ rows: [] });
+      });
 
       await initDatabaseSchema(mockClient);
-
-      expect(mockClient.query).toHaveBeenCalledTimes(16);
-
+      // проверяем транзакцию и ключевые операции, без жёсткой привязки к количеству вызовов
+      expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM article_tags'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM tags'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('DROP TABLE'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS specialties'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS technologies'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS articles'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS tags'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS article_tags'));
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS article_links'));
+      expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
       expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS specialties'));
       expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS technologies'));
       expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS articles'));
@@ -133,7 +154,7 @@ describe('Unit/utility/function/initDatabaseSchema', () => {
     });
   });
 
-  describe('ERROR_CASES', () => {
+  describe(DESCRIBE_CASES.ERROR, () => {
     it('должен пробрасывать ошибку при ошибке создания таблиц', async () => {
       mockClient.query.mockRejectedValue(new Error('Query error'));
       await expect(initDatabaseSchema(mockClient)).rejects.toThrow('Query error');

@@ -1,4 +1,4 @@
-import { DocsScanner } from './class/DocsScanner';
+import { DocsScanner } from './class';
 import { DocItem, ScanOptions } from '../types';
 import { DEFAULT_OPTIONS } from './config';
 

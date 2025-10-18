@@ -3,24 +3,24 @@
 import { Command } from 'commander';
 import { initDatabase, clearDatabase } from '../database';
 import { parseDatabase, filterChangedFiles, loadYAMLContent } from '../docScanner';
-import { saveDocuments } from '../helpers';
+import { saveDocuments } from '../saveDocuments';
 import { CheckUpdatesOptions, ParseDbOptions, ScanOptions, TechnologyMapping, UpdateArticlesOptions } from '../types';
 import {
-  CHECK_UPDATES,
-  CLEAR_DB,
   COMMAND_DESCRIPTION,
   COMMAND_NAME,
   COMMAND_VERSION,
   CONFIG_PATH,
   DOCS_PATH,
+  INIT_DB,
+  PARSE_DB,
+  CHECK_UPDATES,
+  UPDATE_ARTICLES,
+  CLEAR_DB,
   flagsCheckOnly,
   flagsClear,
   flagsConfig,
   flagsForce,
   flagsPath,
-  INIT_DB,
-  PARSE_DB,
-  UPDATE_ARTICLES,
 } from '../constants';
 import packageJson from '../../package.json';
 
@@ -65,81 +65,80 @@ async function main() {
       }
     });
 
-  // todo: обновить скрипт
   program
     .command(PARSE_DB)
     .description('Парсить документацию и сохранить в базу данных')
     .option(flagsPath, 'Путь к документации', DOCS_PATH)
     .option(flagsConfig, 'Путь к конфигурационным файлам', CONFIG_PATH)
-    .option(flagsClear, 'Очистить базу данных перед парсингом') // todo: так делать кажется не надо, лучше идти через флоу очистки БД вручную, а если существует уже БД предложить другие кейсы
-    .option(flagsCheckOnly, 'Проверить обновления без сохранения') // todo: тоже не надо, так как этот скрипт предназначен для заполнения таблицы данными
+    .option(flagsClear, 'Очистить базу данных перед парсингом')
+    .option(flagsCheckOnly, 'Проверить обновления без сохранения')
     .action(async (options: ParseDbOptions) => {
       try {
-        if (options.checkOnly) {
-          console.log('🔍 Проверка обновлений...');
-
-          const configDir = options.configDir || CONFIG_PATH;
-
-          const scanOptions: ScanOptions = {
-            docsPath: options.path,
-            configPath: {
-              technologyPath: `${configDir}/category-mapping.yaml`,
-              specialtiesPath: `${configDir}/specialties.yaml`,
-            },
-          };
-
-          const documents = await parseDatabase(scanOptions);
-          const changedFiles = await filterChangedFiles(documents);
-
-          console.log(`\n📊 Статистика:`);
-          console.log(`   Всего файлов: ${documents.length}`);
-          console.log(`   Требуют обновления: ${changedFiles.length}`);
-          console.log(`   Неизмененных: ${documents.length - changedFiles.length}`);
-
-          if (changedFiles.length === 0) {
-            console.log('\n✅ Нет файлов для обновления');
-          } else {
-            console.log(`\n🔄 Найдено ${changedFiles.length} файлов для обновления`);
-          }
-          return;
-        }
-
-        console.log('🔄 Парсинг документации...');
-
-        if (options.clear) {
-          console.log('🗑️ Очистка базы данных...');
-          await clearDatabase();
-        }
-
         const configDir = options.configDir || CONFIG_PATH;
-        const technologyMapping = await loadYAMLContent(options.config);
-        const specialtyMapping = await loadYAMLContent(`${configDir}/specialties.yaml`);
         const scanOptions: ScanOptions = {
           docsPath: options.path,
           configPath: {
-            technologyPath: options.config,
+            technologyPath: `${configDir}/category-mapping.yaml`,
             specialtiesPath: `${configDir}/specialties.yaml`,
           },
         };
 
-        const documents = await parseDatabase(scanOptions);
-        console.log(`\n📊 Найдено ${documents.length} документов`);
+        if (options.checkOnly) {
+          console.log('Проверка обновлений...');
 
-        console.log('💾 Сохранение в базу данных...');
-        try {
-          await saveDocuments(documents, undefined, technologyMapping as TechnologyMapping, specialtyMapping);
-          console.log('✅ Парсинг завершен успешно');
-        } catch (error) {
-          console.error('\n❌ Ошибки при сохранении статей:');
-          if (error instanceof Error) {
-            console.error(`   ${error.message}`);
+          const documents = await parseDatabase(scanOptions);
+          const changedFiles = await filterChangedFiles(documents);
+
+          console.log(`Статистика:`);
+          console.log(`Всего файлов: ${documents.length}`);
+          console.log(`Требуют обновления: ${changedFiles.length}`);
+          console.log(`Неизмененных: ${documents.length - changedFiles.length}`);
+
+          if (changedFiles.length === 0) {
+            console.log('Нет файлов для обновления');
           } else {
-            console.error(`   Неизвестная ошибка: ${error}`);
+            console.log(`Найдено ${changedFiles.length} файлов для обновления`);
           }
+
+          return;
+        }
+
+        console.log('Парсинг документации...');
+
+        if (options.clear) {
+          console.log('Очистка базы данных...');
+
+          await clearDatabase();
+        }
+
+        const technologyMapping = loadYAMLContent(`${configDir}/category-mapping.yaml`);
+        const specialtyMapping = loadYAMLContent(`${configDir}/specialties.yaml`);
+
+        const documents = await parseDatabase(scanOptions);
+
+        console.log(`Найдено ${documents.length} документов`);
+        console.log('Сохранение в базу данных...');
+
+        try {
+          await saveDocuments({
+            documents,
+            technologyMapping: technologyMapping as TechnologyMapping,
+            specialtyMapping,
+          });
+          console.log('Парсинг завершен успешно');
+        } catch (error) {
+          console.error('Ошибки при сохранении статей:');
+
+          if (error instanceof Error) {
+            console.error(error.message);
+          } else {
+            console.error(`Неизвестная ошибка: ${error}`);
+          }
+
           process.exit(1);
         }
       } catch (error) {
-        console.error('❌ Ошибка при парсинге:', error);
+        console.error('Ошибка при парсинге:', error);
         process.exit(1);
       }
     });
@@ -243,7 +242,7 @@ async function main() {
         // Сохраняем документы в базу данных
         console.log('\n💾 Сохранение в базу данных...');
         try {
-          await saveDocuments(filesToUpdate);
+          await saveDocuments({ documents: filesToUpdate });
           console.log(`\n✅ Успешно обновлено ${filesToUpdate.length} статей`);
         } catch (error) {
           console.error('\n❌ Ошибки при сохранении статей:');
