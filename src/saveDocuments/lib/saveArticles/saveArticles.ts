@@ -64,14 +64,20 @@ export async function saveArticles(
             if (debug) console.log(`Сохраняем статью: ${doc.title} (${uniqueSlug})`);
 
             const articleResult = await client.query(SCHEMA.INSERT_ARTICLE_QUERY, [
+                doc.uid,
                 doc.title,
                 uniqueSlug,
                 doc.content,
                 specialtyId,
                 technologyId,
+                doc.access,
+                doc.tools,
+                doc.order,
                 doc.priority,
                 doc.description,
                 doc.file_hash,
+                doc.created_at,
+                doc.updated_at,
             ]);
 
             const articleId = articleResult.rows[0].id;

@@ -40,7 +40,7 @@ export async function filterChangedFiles(documents: DocItem[]): Promise<DocItem[
       let existingHash: string | undefined;
 
       for (const [slug, hash] of existingHashes.entries()) {
-        if (slug.startsWith(doc.id + '-')) {
+        if (slug === doc.uid || slug === doc.id || slug.startsWith(doc.id + '-')) {
           existingHash = hash;
           break;
         }

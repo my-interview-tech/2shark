@@ -20,14 +20,14 @@ export type YAMLContent = SpecialtyMapping | TechnologyMapping;
  * };
  * ```
  */
-export interface SpecialtyMapping {
+export type SpecialtyMapping = {
   [specialty: string]: {
     /** Приоритет для сортировки (меньше = выше) */
     priority: number;
     /** Описание специальности */
     description: string;
   };
-}
+};
 
 /**
  * Маппинг технологий в специальности
@@ -56,7 +56,7 @@ export interface SpecialtyMapping {
  * };
  * ```
  */
-export interface TechnologyMapping {
+export type TechnologyMapping = {
   [subcategory: string]: {
     /** Специальность или массив специальностей */
     specialty: string | string[];
@@ -67,7 +67,7 @@ export interface TechnologyMapping {
     /** Описание технологии */
     description: string;
   };
-}
+};
 
 /**
  * Представляет обработанный документ из Markdown файла
@@ -91,9 +91,11 @@ export interface TechnologyMapping {
  * };
  * ```
  */
-export interface DocItem {
+export type DocItem = {
   /** Уникальный идентификатор документа (slug) */
   id: string;
+  /** Стабильный идентификатор документа из frontmatter */
+  uid: string;
   /** Заголовок документа */
   title: string;
   /** Содержимое Markdown файла */
@@ -110,13 +112,19 @@ export interface DocItem {
   tags: string[];
   /** Массив валидированных ссылок из info */
   info: string[];
+  /** Режим доступа из frontmatter */
+  access: string;
+  /** Используемые инструменты из frontmatter */
+  tools: string[];
+  /** Порядок отображения документа */
+  order: number;
   /** Хеш содержимого файла для отслеживания изменений */
   file_hash: string;
   /** Дата создания документа */
   created_at: Date;
   /** Дата последнего обновления документа */
   updated_at: Date;
-}
+};
 
 /**
  * Опции для настройки сканирования документации
@@ -139,7 +147,7 @@ export interface DocItem {
  * const items = await parseDatabase(options);
  * ```
  */
-export interface ScanOptions {
+export type ScanOptions = {
   /** Путь к директории с документацией (по умолчанию: './docs') */
   docsPath?: string;
 
@@ -156,7 +164,7 @@ export interface ScanOptions {
 
   /** Очистить базу данных перед сканированием */
   clearBeforeScan?: boolean;
-}
+};
 
 /**
  * Конфигурация подключения к PostgreSQL
@@ -188,7 +196,7 @@ export interface ScanOptions {
  * DB_PASSWORD=password
  * ```
  */
-export interface DatabaseConfig {
+export type DatabaseConfig = {
   /** Хост базы данных (по умолчанию: 'localhost') */
   host: string;
   /** Порт базы данных (по умолчанию: 5432) */
@@ -199,7 +207,7 @@ export interface DatabaseConfig {
   user: string;
   /** Пароль пользователя (по умолчанию: 'password') */
   password: string;
-}
+};
 
 type BaseOptions = {
   path: string;
@@ -218,4 +226,19 @@ export type CheckUpdatesOptions = BaseOptions & {
 
 export type UpdateArticlesOptions = BaseOptions & {
   force: boolean;
+};
+
+export type TRunImportOptions = {
+  docsPath: string;
+  configDir: string;
+  shouldClearBeforeImport?: boolean;
+  shouldCheckOnly?: boolean;
+  shouldForce?: boolean;
+};
+
+export type TRunImportResult = {
+  total: number;
+  changed: number;
+  skipped: number;
+  saved: number;
 };
