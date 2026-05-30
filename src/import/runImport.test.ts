@@ -4,8 +4,10 @@ import { loadYAMLContent, parseDatabase } from '../docScanner';
 import { filterChangedFiles } from '../helpers';
 import { saveDocuments } from '../saveDocuments';
 import { readRevisionDocuments } from './git-source';
+import { createImportJob, markImportJobFailed, markImportJobRunning, markImportJobSuccess } from './jobs';
 import { DESCRIBE_CASES } from '../helpers/test';
 import { DocItem } from '../types';
+import { Pool } from 'pg';
 
 jest.mock('../database', () => ({
   clearDatabase: jest.fn(),
@@ -26,6 +28,17 @@ jest.mock('../saveDocuments', () => ({
 
 jest.mock('./git-source', () => ({
   readRevisionDocuments: jest.fn(),
+}));
+
+jest.mock('./jobs', () => ({
+  createImportJob: jest.fn(),
+  markImportJobRunning: jest.fn(),
+  markImportJobSuccess: jest.fn(),
+  markImportJobFailed: jest.fn(),
+}));
+
+jest.mock('pg', () => ({
+  Pool: jest.fn(),
 }));
 
 const mockDocuments: DocItem[] = [
@@ -68,8 +81,19 @@ const mockDocuments: DocItem[] = [
 ];
 
 describe('Unit/import/function/runImport', () => {
+  const mockJobsClient = {
+    release: jest.fn(),
+  };
+  const mockPoolInstance = {
+    connect: jest.fn(),
+    end: jest.fn(),
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
+    (Pool as jest.MockedClass<typeof Pool>).mockImplementation(() => mockPoolInstance as any);
+    mockPoolInstance.connect.mockResolvedValue(mockJobsClient as any);
+    mockPoolInstance.end.mockResolvedValue(undefined);
     (loadYAMLContent as jest.MockedFunction<typeof loadYAMLContent>).mockImplementation((path: string) => {
       if (path.includes('category-mapping.yaml')) {
         return { React: { specialty: 'Frontend', priority: 1, description: 'React' } } as ReturnType<
@@ -82,6 +106,7 @@ describe('Unit/import/function/runImport', () => {
     (parseDatabase as jest.MockedFunction<typeof parseDatabase>).mockResolvedValue(mockDocuments);
     (filterChangedFiles as jest.MockedFunction<typeof filterChangedFiles>).mockResolvedValue([mockDocuments[0]]);
     (readRevisionDocuments as jest.MockedFunction<typeof readRevisionDocuments>).mockReturnValue(mockDocuments);
+    (createImportJob as jest.MockedFunction<typeof createImportJob>).mockResolvedValue('1');
   });
 
   describe(DESCRIBE_CASES.SUCCESS, () => {
@@ -89,6 +114,9 @@ describe('Unit/import/function/runImport', () => {
       const result = await runImport({
         docsPath: './docs',
         configDir: './config',
+        repoPath: '/tmp/repo',
+        branch: 'master',
+        commitSha: 'abc123',
         shouldCheckOnly: true,
       });
 
@@ -99,12 +127,16 @@ describe('Unit/import/function/runImport', () => {
         saved: 0,
       });
       expect(saveDocuments).not.toHaveBeenCalled();
+      expect(markImportJobSuccess).toHaveBeenCalled();
     });
 
     it('Должна сохранить changed документы и вернуть summary', async () => {
       const result = await runImport({
         docsPath: './docs',
         configDir: './config',
+        repoPath: '/tmp/repo',
+        branch: 'master',
+        commitSha: 'abc123',
       });
 
       expect(saveDocuments).toHaveBeenCalledWith(
@@ -118,6 +150,12 @@ describe('Unit/import/function/runImport', () => {
         skipped: 1,
         saved: 1,
       });
+      expect(createImportJob).toHaveBeenCalledWith(expect.any(Object), {
+        branch: 'master',
+        commitSha: 'abc123',
+      });
+      expect(markImportJobRunning).toHaveBeenCalledWith(expect.any(Object), '1');
+      expect(markImportJobSuccess).toHaveBeenCalled();
     });
 
     it('Должна читать документы из git revision при переданных branch и commitSha', async () => {
@@ -145,6 +183,9 @@ describe('Unit/import/function/runImport', () => {
       const result = await runImport({
         docsPath: './docs',
         configDir: './config',
+        repoPath: '/tmp/repo',
+        branch: 'master',
+        commitSha: 'abc123',
         shouldForce: true,
       });
 
@@ -157,22 +198,15 @@ describe('Unit/import/function/runImport', () => {
       expect(result.saved).toBe(2);
     });
 
-    it('Должна очистить БД перед сохранением если включен clear', async () => {
-      await runImport({
-        docsPath: './docs',
-        configDir: './config',
-        shouldClearBeforeImport: true,
-      });
-
-      expect(clearDatabase).toHaveBeenCalledTimes(1);
-    });
-
     it('Должна не вызывать saveDocuments если нет changed документов', async () => {
       (filterChangedFiles as jest.MockedFunction<typeof filterChangedFiles>).mockResolvedValue([]);
 
       const result = await runImport({
         docsPath: './docs',
         configDir: './config',
+        repoPath: '/tmp/repo',
+        branch: 'master',
+        commitSha: 'abc123',
       });
 
       expect(saveDocuments).not.toHaveBeenCalled();
@@ -194,18 +228,21 @@ describe('Unit/import/function/runImport', () => {
         runImport({
           docsPath: './docs',
           configDir: './config',
+          repoPath: '/tmp/repo',
+          branch: 'master',
+          commitSha: 'abc123',
         }),
       ).rejects.toThrow('Не удалось загрузить конфигурацию');
+      expect(markImportJobFailed).toHaveBeenCalled();
     });
 
-    it('Должна вернуть ошибку если передан только branch без commitSha', async () => {
+    it('Должна вернуть ошибку если не переданы branch и commitSha', async () => {
       await expect(
         runImport({
           docsPath: './docs',
           configDir: './config',
-          branch: 'master',
         }),
-      ).rejects.toThrow('branch и commitSha');
+      ).rejects.toThrow('обязательны');
     });
 
     it('Должна вернуть ошибку при clear в revision import', async () => {
@@ -218,6 +255,26 @@ describe('Unit/import/function/runImport', () => {
           shouldClearBeforeImport: true,
         }),
       ).rejects.toThrow('Destructive clear запрещен');
+      expect(clearDatabase).not.toHaveBeenCalled();
+    });
+
+    it('Должна пробрасывать исходную ошибку если сохранение failed job тоже упало', async () => {
+      const sourceError = new Error('source import error');
+      const failedSaveError = new Error('failed save error');
+      (readRevisionDocuments as jest.MockedFunction<typeof readRevisionDocuments>).mockImplementation(() => {
+        throw sourceError;
+      });
+      (markImportJobFailed as jest.MockedFunction<typeof markImportJobFailed>).mockRejectedValue(failedSaveError);
+
+      await expect(
+        runImport({
+          docsPath: './docs',
+          configDir: './config',
+          repoPath: '/tmp/repo',
+          branch: 'master',
+          commitSha: 'abc123',
+        }),
+      ).rejects.toThrow('source import error');
     });
   });
 });

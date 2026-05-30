@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { execFileSync } from 'child_process';
 import { initDatabase, clearDatabase } from '../database';
 import { runImport } from '../import';
 import { CheckUpdatesOptions, ParseDbOptions, TRunImportOptions, UpdateArticlesOptions } from '../types';
@@ -54,6 +55,29 @@ function toImportOptions(options: TImportCliOptions): TRunImportOptions {
     shouldForce: Boolean(options.force),
     shouldClearBeforeImport: Boolean(options.clear),
   };
+}
+
+function resolveGitRevisionOrThrow(repoPath: string): { branch: string; commitSha: string } {
+  try {
+    const branch = execFileSync('git', ['branch', '--show-current'], {
+      cwd: repoPath,
+      encoding: 'utf-8',
+    }).trim();
+    const commitSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repoPath,
+      encoding: 'utf-8',
+    }).trim();
+
+    if (!branch || !commitSha) {
+      throw new Error('Не удалось определить branch/commitSha');
+    }
+
+    return { branch, commitSha };
+  } catch {
+    throw new Error(
+      'Не удалось определить git revision для legacy-команды. Используйте `2shark import --branch <name> --commit-sha <sha>`',
+    );
+  }
 }
 
 function assertRevisionOptions(options: TImportCliOptions): void {
@@ -131,8 +155,12 @@ async function main() {
       try {
         printDeprecatedCommandWarning(PARSE_DB);
         console.log('Запуск legacy команды parse-db через import pipeline...');
+        const revision = resolveGitRevisionOrThrow(process.cwd());
         const result = await runImport({
           ...toImportOptions(options),
+          repoPath: process.cwd(),
+          branch: revision.branch,
+          commitSha: revision.commitSha,
           shouldForce: !options.checkOnly,
         });
 
@@ -175,8 +203,12 @@ async function main() {
     .action(async (options: CheckUpdatesOptions) => {
       try {
         printDeprecatedCommandWarning(CHECK_UPDATES);
+        const revision = resolveGitRevisionOrThrow(process.cwd());
         const result = await runImport({
           ...toImportOptions(options),
+          repoPath: process.cwd(),
+          branch: revision.branch,
+          commitSha: revision.commitSha,
           shouldCheckOnly: true,
           shouldForce: false,
         });
@@ -197,8 +229,12 @@ async function main() {
     .action(async (options: UpdateArticlesOptions) => {
       try {
         printDeprecatedCommandWarning(UPDATE_ARTICLES);
+        const revision = resolveGitRevisionOrThrow(process.cwd());
         const result = await runImport({
           ...toImportOptions(options),
+          repoPath: process.cwd(),
+          branch: revision.branch,
+          commitSha: revision.commitSha,
           shouldForce: Boolean(options.force),
           shouldCheckOnly: false,
         });

@@ -253,3 +253,31 @@ export type TRunImportResult = {
   skipped: number;
   saved: number;
 };
+
+export type TImportJobStatus = 'pending' | 'running' | 'success' | 'failed';
+
+export type TImportJobResult = {
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  archived?: number;
+};
+
+export type TImportJobError = {
+  message: string;
+  code?: string;
+  file?: string;
+  field?: string;
+};
+
+export type TImportJob = {
+  id: string;
+  branch: string;
+  commitSha: string;
+  status: TImportJobStatus;
+  startedAt: Date;
+  finishedAt: Date | null;
+  result: TImportJobResult | null;
+  error: TImportJobError | null;
+};
