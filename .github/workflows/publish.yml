@@ -2,6 +2,9 @@ name: Publish
 
 on: workflow_dispatch
 
+permissions:
+  contents: write
+
 concurrency: ${{ github.workflow }}
 
 jobs:
@@ -75,40 +78,59 @@ jobs:
           git commit -m "chore: version bump and changelog update" || exit 0
           git push
 
+      - name: Check NPM version
+        id: npm-version
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          if npm view "2shark@$VERSION" version --registry https://registry.npmjs.org/ > /dev/null 2>&1; then
+            echo "published=true" >> $GITHUB_OUTPUT
+            echo "2shark@$VERSION is already published"
+          else
+            echo "published=false" >> $GITHUB_OUTPUT
+            echo "2shark@$VERSION is not published yet"
+          fi
+
       - name: Publish to NPM
+        if: steps.npm-version.outputs.published == 'false'
         run: npm publish --access public --registry https://registry.npmjs.org/
         env:
           NODE_AUTH_TOKEN: ${{ secrets.SHARP_NPM_PUBLISH_TOKEN }}
 
-      - name: Create Git tag and release
+      - name: Create Git tag
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HUSKY: 0
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          git tag "v$VERSION"
-          git push origin "v$VERSION"
+          VERSION="${{ steps.get-version.outputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null 2>&1; then
+            echo "Tag v$VERSION already exists"
+          else
+            git tag "v$VERSION"
+            git push origin "v$VERSION"
+          fi
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.get-version.outputs.version }}
-          release_name: Release v${{ steps.get-version.outputs.version }}
-          body: |
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "Release v$VERSION already exists"
+          else
+            gh release create "v$VERSION" \
+              --title "Release v$VERSION" \
+              --notes "$(cat <<'EOF'
             ## Changes in this Release
-            
+
             Automated release from GitHub Actions.
-            
+
             ### Installation
-            
+
             ```bash
             npm install 2shark
             ```
-            
+
             ### Usage
-            
+
             ```typescript
             import { runImport, initDatabase } from '2shark';
 
@@ -121,10 +143,11 @@ jobs:
             ```
             
             ### Features
-            
+
             - Built with esbuild for fast compilation
             - TypeScript definitions included
             - PostgreSQL database integration
             - CLI interface for easy usage
-          draft: false
-          prerelease: false 
+          EOF
+          )"
+          fi
