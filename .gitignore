@@ -26,6 +26,7 @@ scripts/*.d.ts.map
 # OS
 .DS_Store
 Thumbs.db
+AGENTS.md
 
 # Логи
 logs/
