@@ -2,28 +2,106 @@
 
 import { Command } from 'commander';
 import { initDatabase, clearDatabase } from '../database';
-import { parseDatabase, filterChangedFiles, loadYAMLContent } from '../docScanner';
-import { saveDocuments } from '../saveDocuments';
-import { CheckUpdatesOptions, ParseDbOptions, ScanOptions, TechnologyMapping, UpdateArticlesOptions } from '../types';
+import { runImport } from '../import';
+import { TRunImportOptions } from '../types';
 import {
   COMMAND_DESCRIPTION,
   COMMAND_NAME,
   COMMAND_VERSION,
   CONFIG_PATH,
   DOCS_PATH,
+  IMPORT,
   INIT_DB,
-  PARSE_DB,
-  CHECK_UPDATES,
-  UPDATE_ARTICLES,
   CLEAR_DB,
   flagsCheckOnly,
   flagsClear,
   flagsConfig,
   flagsForce,
   flagsPath,
+  flagsRepoPath,
+  flagsBranch,
+  flagsCommitSha,
+  flagsProductionSync,
 } from '../constants';
 import packageJson from '../../package.json';
 
+type TImportCliOptions = {
+  path: string;
+  config?: string;
+  configDir?: string;
+  repoPath?: string;
+  branch?: string;
+  commitSha?: string;
+  productionSync?: boolean;
+  clear?: boolean;
+  checkOnly?: boolean;
+  force?: boolean;
+};
+
+/**
+ * Возвращает директорию конфигурации для import pipeline.
+ *
+ * @param options - CLI-опции с возможными алиасами пути к конфигу.
+ * @returns Путь к директории конфигурации или дефолтный `CONFIG_PATH`.
+ */
+function resolveConfigDir(options: { config?: string; configDir?: string }): string {
+  return options.config || options.configDir || CONFIG_PATH;
+}
+
+/**
+ * Преобразует CLI-опции Commander в контракт `runImport`.
+ *
+ * @param options - Опции команды `2shark import`.
+ * @returns Нормализованные опции production import pipeline.
+ */
+function toImportOptions(options: TImportCliOptions): TRunImportOptions {
+  return {
+    docsPath: options.path || DOCS_PATH,
+    configDir: resolveConfigDir(options),
+    repoPath: options.repoPath,
+    branch: options.branch,
+    commitSha: options.commitSha,
+    isProductionSync: Boolean(options.productionSync),
+    shouldCheckOnly: Boolean(options.checkOnly),
+    shouldForce: Boolean(options.force),
+    shouldClearBeforeImport: Boolean(options.clear),
+  };
+}
+
+/**
+ * Проверяет наличие обязательной git-ревизии для production import.
+ *
+ * @param options - Опции команды `2shark import`.
+ * @throws Если не передан `--branch` или `--commit-sha`.
+ */
+function assertRevisionOptions(options: TImportCliOptions): void {
+  if (!options.branch) {
+    throw new Error('Для production import обязательно передать --branch');
+  }
+
+  if (!options.commitSha) {
+    throw new Error('Для production import обязательно передать --commit-sha');
+  }
+}
+
+/**
+ * Печатает краткую статистику выполнения import pipeline.
+ *
+ * @param result - Summary результата импорта.
+ */
+function printImportSummary(result: { total: number; changed: number; skipped: number; saved: number }): void {
+  console.log('Статистика:');
+  console.log(`Всего файлов: ${result.total}`);
+  console.log(`Изменено: ${result.changed}`);
+  console.log(`Пропущено: ${result.skipped}`);
+  console.log(`Сохранено: ${result.saved}`);
+}
+
+/**
+ * Регистрирует CLI-команды и запускает парсинг аргументов процесса.
+ *
+ * @returns Promise, который завершается после обработки команды Commander.
+ */
 async function main() {
   const program = new Command();
 
@@ -66,195 +144,24 @@ async function main() {
     });
 
   program
-    .command(PARSE_DB)
-    .description('Парсить документацию и сохранить в базу данных')
+    .command(IMPORT)
+    .description('Production import entrypoint')
     .option(flagsPath, 'Путь к документации', DOCS_PATH)
     .option(flagsConfig, 'Путь к конфигурационным файлам', CONFIG_PATH)
-    .option(flagsClear, 'Очистить базу данных перед парсингом')
+    .option(flagsRepoPath, 'Путь к git-репозиторию с контентом', process.cwd())
+    .requiredOption(flagsBranch, 'Git branch для import')
+    .requiredOption(flagsCommitSha, 'Git commit SHA для import')
+    .option(flagsProductionSync, 'Запуск в production sync режиме (только branch=main)')
+    .option(flagsClear, 'Очистить базу данных перед импортом')
     .option(flagsCheckOnly, 'Проверить обновления без сохранения')
-    .action(async (options: ParseDbOptions) => {
+    .option(flagsForce, 'Сохранить все документы без diff')
+    .action(async (options: TImportCliOptions) => {
       try {
-        const configDir = options.configDir || CONFIG_PATH;
-        const scanOptions: ScanOptions = {
-          docsPath: options.path,
-          configPath: {
-            technologyPath: `${configDir}/category-mapping.yaml`,
-            specialtiesPath: `${configDir}/specialties.yaml`,
-          },
-        };
-
-        if (options.checkOnly) {
-          console.log('Проверка обновлений...');
-
-          const documents = await parseDatabase(scanOptions);
-          const changedFiles = await filterChangedFiles(documents);
-
-          console.log(`Статистика:`);
-          console.log(`Всего файлов: ${documents.length}`);
-          console.log(`Требуют обновления: ${changedFiles.length}`);
-          console.log(`Неизмененных: ${documents.length - changedFiles.length}`);
-
-          if (changedFiles.length === 0) {
-            console.log('Нет файлов для обновления');
-          } else {
-            console.log(`Найдено ${changedFiles.length} файлов для обновления`);
-          }
-
-          return;
-        }
-
-        console.log('Парсинг документации...');
-
-        if (options.clear) {
-          console.log('Очистка базы данных...');
-
-          await clearDatabase();
-        }
-
-        const technologyMapping = loadYAMLContent(`${configDir}/category-mapping.yaml`);
-        const specialtyMapping = loadYAMLContent(`${configDir}/specialties.yaml`);
-
-        const documents = await parseDatabase(scanOptions);
-
-        console.log(`Найдено ${documents.length} документов`);
-        console.log('Сохранение в базу данных...');
-
-        try {
-          await saveDocuments({
-            documents,
-            technologyMapping: technologyMapping as TechnologyMapping,
-            specialtyMapping,
-          });
-          console.log('Парсинг завершен успешно');
-        } catch (error) {
-          console.error('Ошибки при сохранении статей:');
-
-          if (error instanceof Error) {
-            console.error(error.message);
-          } else {
-            console.error(`Неизвестная ошибка: ${error}`);
-          }
-
-          process.exit(1);
-        }
+        assertRevisionOptions(options);
+        const result = await runImport(toImportOptions(options));
+        printImportSummary(result);
       } catch (error) {
-        console.error('Ошибка при парсинге:', error);
-        process.exit(1);
-      }
-    });
-
-  // todo: обновить скрипт
-  program
-    .command(CHECK_UPDATES)
-    .description('Проверить какие файлы требуют обновления')
-    .option(flagsPath, 'Путь к документации', DOCS_PATH)
-    .option(flagsConfig, 'Путь к конфигурационным файлам', CONFIG_PATH)
-    .option(flagsCheckOnly, 'Проверить обновления без сохранения')
-    .action(async (options: CheckUpdatesOptions) => {
-      try {
-        try {
-          console.log('🔍 Проверка обновлений...');
-          const configDir = options.configDir || CONFIG_PATH;
-
-          const scanOptions: ScanOptions = {
-            docsPath: options.path,
-            configPath: {
-              technologyPath: `${configDir}/category-mapping.yaml`,
-              specialtiesPath: `${configDir}/specialties.yaml`,
-            },
-          };
-
-          const documents = await parseDatabase(scanOptions);
-          const changedFiles = await filterChangedFiles(documents);
-
-          console.log(`\n📊 Статистика:`);
-          console.log(`   Всего файлов: ${documents.length}`);
-          console.log(`   Требуют обновления: ${changedFiles.length}`);
-          console.log(`   Неизмененных: ${documents.length - changedFiles.length}`);
-
-          if (changedFiles.length === 0) {
-            console.log('\n✅ Нет файлов для обновления');
-          } else {
-            console.log(`\n🔄 Найдено ${changedFiles.length} файлов для обновления`);
-          }
-        } catch (error) {
-          console.error('❌ Ошибка при проверке обновлений:', error);
-          process.exit(1);
-        }
-      } catch (error) {
-        console.error('❌ Ошибка при проверке обновлений:', error);
-        process.exit(1);
-      }
-    });
-
-  // todo: обновить скрипт
-  program
-    .command(UPDATE_ARTICLES)
-    .description('Обновить измененные статьи в базе данных')
-    .option(flagsPath, 'Путь к документации', DOCS_PATH)
-    .option(flagsConfig, 'Путь к конфигурационным файлам', CONFIG_PATH)
-    .option(flagsForce, 'Обновить измененные статьи') // todo: проверить, что обновляются только измененные статьи
-    .action(async (options: UpdateArticlesOptions) => {
-      try {
-        console.log('🔄 Обновление статей...');
-
-        const configDir = options.configDir || CONFIG_PATH;
-
-        const scanOptions: ScanOptions = {
-          docsPath: options.path,
-          configPath: {
-            technologyPath: `${configDir}/category-mapping.yaml`,
-            specialtiesPath: `${configDir}/specialties.yaml`,
-          },
-        };
-
-        const documents = await parseDatabase(scanOptions);
-        let filesToUpdate = documents;
-
-        if (!options.force) {
-          // Получаем только измененные файлы
-          filesToUpdate = await filterChangedFiles(documents);
-        }
-
-        if (filesToUpdate.length === 0) {
-          console.log('\n✅ Нет файлов для обновления');
-          return;
-        }
-
-        console.log(`\n📊 Статистика обновления:`);
-        console.log(`   Всего файлов: ${documents.length}`);
-        console.log(`   Будет обновлено: ${filesToUpdate.length}`);
-        console.log(`   Неизмененных: ${documents.length - filesToUpdate.length}`);
-
-        if (!options.force) {
-          console.log(`\n🔄 Найдено ${filesToUpdate.length} файлов для обновления:`);
-          console.log('='.repeat(50));
-
-          filesToUpdate.forEach((file, index) => {
-            console.log(`${index + 1}. ${file.title}`);
-            console.log(`   ID: ${file.id}`);
-            console.log(`   Специальность: ${file.specialty}`);
-            console.log(`   Технология: ${file.technology}`);
-            console.log('');
-          });
-        }
-
-        // Сохраняем документы в базу данных
-        console.log('\n💾 Сохранение в базу данных...');
-        try {
-          await saveDocuments({ documents: filesToUpdate });
-          console.log(`\n✅ Успешно обновлено ${filesToUpdate.length} статей`);
-        } catch (error) {
-          console.error('\n❌ Ошибки при сохранении статей:');
-          if (error instanceof Error) {
-            console.error(`   ${error.message}`);
-          } else {
-            console.error(`   Неизвестная ошибка: ${error}`);
-          }
-          process.exit(1);
-        }
-      } catch (error) {
-        console.error('❌ Ошибка при обновлении статей:', error);
+        console.error('Ошибка при импорте:', error);
         process.exit(1);
       }
     });

@@ -10,14 +10,8 @@ export const COMMAND_VERSION = '2.0.1';
 // Нейминг скриптов
 // ============================================================================
 
-/** Команда для проверки обновлений */
-export const CHECK_UPDATES = 'check-updates';
-
-/** Команда для обновления статей */
-export const UPDATE_ARTICLES = 'update-articles';
-
-/** Команда для парсинга базы данных */
-export const PARSE_DB = 'parse-db';
+/** Production команда импорта */
+export const IMPORT = 'import';
 
 /** Команда для инициализации базы данных */
 export const INIT_DB = 'init-db';
@@ -34,6 +28,10 @@ export const flagsConfig = '-c, --config <config>';
 export const flagsClear = '--clear';
 export const flagsCheckOnly = '--check-only';
 export const flagsForce = '-f, --force';
+export const flagsRepoPath = '--repo-path <path>';
+export const flagsBranch = '--branch <name>';
+export const flagsCommitSha = '--commit-sha <sha>';
+export const flagsProductionSync = '--production-sync';
 
 // ============================================================================
 // Константы для путей

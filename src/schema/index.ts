@@ -26,9 +26,23 @@ const CHECK_TABLE_EXISTS_QUERY = `
  * Используется для отслеживания изменений в документации
  */
 const GET_FILE_HASHES_QUERY = `
-      SELECT slug, file_hash 
+      SELECT uid, slug, file_hash, source_commit_sha
       FROM articles 
       WHERE file_hash IS NOT NULL
+    `;
+
+const SELECT_ACTIVE_ARTICLE_UIDS_QUERY = `
+      SELECT uid
+      FROM articles
+      WHERE is_deleted = false
+    `;
+
+const SELECT_LAST_SUCCESS_IMPORT_JOB_QUERY = `
+      SELECT id, branch, commit_sha, status, started_at, finished_at, result, error
+      FROM import_jobs
+      WHERE status = 'success'
+      ORDER BY started_at DESC
+      LIMIT 1
     `;
 
 // ============================================================================
@@ -84,17 +98,35 @@ const CREATE_SPECIALTY_TECHNOLOGY_TABLE_QUERY = `
 const CREATE_ARTICLES_TABLE_QUERY = `
     CREATE TABLE IF NOT EXISTS articles (
       id SERIAL PRIMARY KEY,
+      uid VARCHAR(255) NOT NULL,
       title VARCHAR(255) NOT NULL,
       slug VARCHAR(255) NOT NULL,
       content TEXT,
       specialty_id INTEGER REFERENCES specialties(id) ON DELETE CASCADE,
       technology_id INTEGER REFERENCES technologies(id) ON DELETE CASCADE,
+      access VARCHAR(64) NOT NULL DEFAULT 'public',
+      tools TEXT[] DEFAULT '{}',
+      article_order INTEGER DEFAULT 0,
       priority INTEGER DEFAULT 0,
       description TEXT,
       file_hash VARCHAR(64),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      source_branch VARCHAR(255),
+      source_commit_sha VARCHAR(255),
+      source_path TEXT,
+      imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      is_deleted BOOLEAN NOT NULL DEFAULT false,
+      archived_at TIMESTAMP NULL,
+      archived_by_import_job_id BIGINT NULL,
+      last_seen_commit_sha VARCHAR(255),
+      UNIQUE(slug),
+      UNIQUE(uid)
     )
+  `;
+
+const CREATE_ARTICLES_IS_DELETED_INDEX_QUERY = `
+    CREATE INDEX IF NOT EXISTS idx_articles_is_deleted ON articles (is_deleted)
   `;
 
 /**
@@ -135,6 +167,21 @@ const CREATE_ARTICLE_LINKS_TABLE_QUERY = `
       UNIQUE(article_id, url)
 )
 `;
+
+const CREATE_IMPORT_JOBS_TABLE_QUERY = `
+    CREATE TABLE IF NOT EXISTS import_jobs (
+      id BIGSERIAL PRIMARY KEY,
+      branch VARCHAR(255) NOT NULL,
+      commit_sha VARCHAR(255) NOT NULL,
+      status VARCHAR(32) NOT NULL,
+      started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      finished_at TIMESTAMP NULL,
+      result JSONB NULL,
+      error JSONB NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
 
 // ============================================================================
 // DELETE DATA QUERIES
@@ -181,6 +228,7 @@ const DELETE_TECHNOLOGIES_DATA_QUERY = `DELETE FROM technologies`;
  * Используется при очистке базы данных
  */
 const DELETE_SPECIALTY_TECHNOLOGY_DATA_QUERY = `DELETE FROM specialty_technology`;
+const DELETE_IMPORT_JOBS_DATA_QUERY = `DELETE FROM import_jobs`;
 
 // ============================================================================
 // DROP TABLE QUERIES
@@ -259,8 +307,30 @@ const UPSERT_SPECIALTY_TECHNOLOGY_QUERY = `INSERT INTO specialty_technology (spe
  * @param {string} fileHash - Хеш файла для отслеживания изменений
  * @returns {number} - ID созданной статьи
  */
-const INSERT_ARTICLE_QUERY = `INSERT INTO articles (title, slug, content, specialty_id, technology_id, priority, description, file_hash) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+const INSERT_ARTICLE_QUERY = `INSERT INTO articles (uid, title, slug, content, specialty_id, technology_id, access, tools, article_order, priority, description, file_hash, created_at, updated_at, source_branch, source_commit_sha, source_path, imported_at, is_deleted, archived_at, archived_by_import_job_id, last_seen_commit_sha)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+         ON CONFLICT (uid) DO UPDATE SET
+         uid = EXCLUDED.uid,
+         title = EXCLUDED.title,
+         content = EXCLUDED.content,
+         specialty_id = EXCLUDED.specialty_id,
+         technology_id = EXCLUDED.technology_id,
+         access = EXCLUDED.access,
+         tools = EXCLUDED.tools,
+         article_order = EXCLUDED.article_order,
+         priority = EXCLUDED.priority,
+         description = EXCLUDED.description,
+         file_hash = EXCLUDED.file_hash,
+         created_at = EXCLUDED.created_at,
+         updated_at = EXCLUDED.updated_at,
+         source_branch = EXCLUDED.source_branch,
+         source_commit_sha = EXCLUDED.source_commit_sha,
+         source_path = EXCLUDED.source_path,
+         imported_at = EXCLUDED.imported_at,
+         is_deleted = false,
+         archived_at = NULL,
+         archived_by_import_job_id = NULL,
+         last_seen_commit_sha = EXCLUDED.last_seen_commit_sha
          RETURNING id`;
 
 /**
@@ -296,19 +366,53 @@ const INSERT_TAG_QUERY = `INSERT INTO tags (name)
          ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name 
          RETURNING id`;
 
+const INSERT_IMPORT_JOB_QUERY = `INSERT INTO import_jobs (branch, commit_sha, status, started_at)
+         VALUES ($1, $2, 'pending', CURRENT_TIMESTAMP)
+         RETURNING id`;
+
+const UPDATE_IMPORT_JOB_RUNNING_QUERY = `UPDATE import_jobs
+         SET status = 'running', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`;
+
+const UPDATE_IMPORT_JOB_SUCCESS_QUERY = `UPDATE import_jobs
+         SET status = 'success',
+         finished_at = CURRENT_TIMESTAMP,
+         result = $2::jsonb,
+         error = NULL,
+         updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`;
+
+const UPDATE_IMPORT_JOB_FAILED_QUERY = `UPDATE import_jobs
+         SET status = 'failed',
+         finished_at = CURRENT_TIMESTAMP,
+         error = $2::jsonb,
+         updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`;
+
+const ARCHIVE_ARTICLES_BY_UIDS_QUERY = `UPDATE articles
+         SET is_deleted = true,
+         archived_at = CURRENT_TIMESTAMP,
+         archived_by_import_job_id = $1
+         WHERE is_deleted = false
+         AND uid = ANY($2::text[])`;
+
 export const SCHEMA = {
   // SELECT queries
   CHECK_TABLE_EXISTS_QUERY,
   GET_FILE_HASHES_QUERY,
+  SELECT_ACTIVE_ARTICLE_UIDS_QUERY,
+  SELECT_LAST_SUCCESS_IMPORT_JOB_QUERY,
 
   // CREATE TABLE queries
   CREATE_SPECIALTIES_TABLE_QUERY,
   CREATE_TECHNOLOGIES_TABLE_QUERY,
   CREATE_SPECIALTY_TECHNOLOGY_TABLE_QUERY,
   CREATE_ARTICLES_TABLE_QUERY,
+  CREATE_ARTICLES_IS_DELETED_INDEX_QUERY,
   CREATE_TAGS_TABLE_QUERY,
   CREATE_ARTICLE_TAGS_TABLE_QUERY,
   CREATE_ARTICLE_LINKS_TABLE_QUERY,
+  CREATE_IMPORT_JOBS_TABLE_QUERY,
 
   // DELETE DATA queries
   DELETE_ARTICLE_TAGS_DATA_QUERY,
@@ -318,6 +422,7 @@ export const SCHEMA = {
   DELETE_SPECIALTIES_DATA_QUERY,
   DELETE_TECHNOLOGIES_DATA_QUERY,
   DELETE_SPECIALTY_TECHNOLOGY_DATA_QUERY,
+  DELETE_IMPORT_JOBS_DATA_QUERY,
 
   // DROP TABLE queries
   DROP_ARTICLES_TABLE_QUERY,
@@ -333,4 +438,9 @@ export const SCHEMA = {
   INSERT_ARTICLE_TAG_QUERY,
   INSERT_ARTICLE_LINK_QUERY,
   INSERT_TAG_QUERY,
+  INSERT_IMPORT_JOB_QUERY,
+  UPDATE_IMPORT_JOB_RUNNING_QUERY,
+  UPDATE_IMPORT_JOB_SUCCESS_QUERY,
+  UPDATE_IMPORT_JOB_FAILED_QUERY,
+  ARCHIVE_ARTICLES_BY_UIDS_QUERY,
 } as const;

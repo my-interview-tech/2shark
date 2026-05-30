@@ -111,11 +111,13 @@ jobs:
             ### Usage
             
             ```typescript
-            import { parseDatabase, initDatabase } from '2shark';
-            
-            const items = await parseDatabase({
+            import { runImport, initDatabase } from '2shark';
+
+            const result = await runImport({
               docsPath: './docs',
-              configPath: './config/category-mapping.yaml'
+              configDir: './config',
+              branch: 'main',
+              commitSha: '<sha>'
             });
             ```
             

@@ -20,14 +20,14 @@ export type YAMLContent = SpecialtyMapping | TechnologyMapping;
  * };
  * ```
  */
-export interface SpecialtyMapping {
+export type SpecialtyMapping = {
   [specialty: string]: {
     /** Приоритет для сортировки (меньше = выше) */
     priority: number;
     /** Описание специальности */
     description: string;
   };
-}
+};
 
 /**
  * Маппинг технологий в специальности
@@ -56,7 +56,7 @@ export interface SpecialtyMapping {
  * };
  * ```
  */
-export interface TechnologyMapping {
+export type TechnologyMapping = {
   [subcategory: string]: {
     /** Специальность или массив специальностей */
     specialty: string | string[];
@@ -67,7 +67,7 @@ export interface TechnologyMapping {
     /** Описание технологии */
     description: string;
   };
-}
+};
 
 /**
  * Представляет обработанный документ из Markdown файла
@@ -91,9 +91,11 @@ export interface TechnologyMapping {
  * };
  * ```
  */
-export interface DocItem {
+export type DocItem = {
   /** Уникальный идентификатор документа (slug) */
   id: string;
+  /** Стабильный идентификатор документа из frontmatter */
+  uid: string;
   /** Заголовок документа */
   title: string;
   /** Содержимое Markdown файла */
@@ -110,13 +112,27 @@ export interface DocItem {
   tags: string[];
   /** Массив валидированных ссылок из info */
   info: string[];
+  /** Режим доступа из frontmatter */
+  access: string;
+  /** Используемые инструменты из frontmatter */
+  tools: string[];
+  /** Порядок отображения документа */
+  order: number;
   /** Хеш содержимого файла для отслеживания изменений */
   file_hash: string;
   /** Дата создания документа */
   created_at: Date;
   /** Дата последнего обновления документа */
   updated_at: Date;
-}
+  /** Git branch источника */
+  sourceBranch?: string;
+  /** Git commit SHA источника */
+  sourceCommitSha?: string;
+  /** Исходный путь markdown-файла в репозитории */
+  sourcePath?: string;
+  /** Время импорта документа */
+  importedAt?: Date;
+};
 
 /**
  * Опции для настройки сканирования документации
@@ -135,11 +151,9 @@ export interface DocItem {
  *   databaseUrl: 'postgresql://user:pass@localhost:5432/db',
  *   clearBeforeScan: false
  * };
- *
- * const items = await parseDatabase(options);
  * ```
  */
-export interface ScanOptions {
+export type ScanOptions = {
   /** Путь к директории с документацией (по умолчанию: './docs') */
   docsPath?: string;
 
@@ -156,7 +170,7 @@ export interface ScanOptions {
 
   /** Очистить базу данных перед сканированием */
   clearBeforeScan?: boolean;
-}
+};
 
 /**
  * Конфигурация подключения к PostgreSQL
@@ -188,7 +202,7 @@ export interface ScanOptions {
  * DB_PASSWORD=password
  * ```
  */
-export interface DatabaseConfig {
+export type DatabaseConfig = {
   /** Хост базы данных (по умолчанию: 'localhost') */
   host: string;
   /** Порт базы данных (по умолчанию: 5432) */
@@ -199,23 +213,59 @@ export interface DatabaseConfig {
   user: string;
   /** Пароль пользователя (по умолчанию: 'password') */
   password: string;
-}
-
-type BaseOptions = {
-  path: string;
-  config: string;
-  configDir?: string;
 };
 
-export type ParseDbOptions = BaseOptions & {
-  clear: boolean;
-  checkOnly: boolean;
+export type TRunImportOptions = {
+  docsPath: string;
+  configDir: string;
+  repoPath?: string;
+  branch?: string;
+  commitSha?: string;
+  isProductionSync?: boolean;
+  shouldClearBeforeImport?: boolean;
+  shouldCheckOnly?: boolean;
+  shouldForce?: boolean;
 };
 
-export type CheckUpdatesOptions = BaseOptions & {
-  checkOnly: boolean;
+export type TRunImportResult = {
+  total: number;
+  changed: number;
+  skipped: number;
+  saved: number;
 };
 
-export type UpdateArticlesOptions = BaseOptions & {
-  force: boolean;
+export type TImportJobStatus = 'pending' | 'running' | 'success' | 'failed';
+
+export type TImportJobResult = {
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  archived: number;
+};
+
+export type TArticleArchiveState = {
+  uid: string;
+  isDeleted: boolean;
+  archivedAt: Date | null;
+  archivedByImportJobId: string | null;
+  lastSeenCommitSha: string | null;
+};
+
+export type TImportJobError = {
+  message: string;
+  code?: string;
+  file?: string;
+  field?: string;
+};
+
+export type TImportJob = {
+  id: string;
+  branch: string;
+  commitSha: string;
+  status: TImportJobStatus;
+  startedAt: Date;
+  finishedAt: Date | null;
+  result: TImportJobResult | null;
+  error: TImportJobError | null;
 };

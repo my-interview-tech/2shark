@@ -19,18 +19,19 @@ npm install -g 2shark
 ### Импорт и использование в коде
 
 ```typescript
-import { parseDatabase, initDatabase, clearDatabase, ScanOptions } from '2shark';
+import { runImport, initDatabase, clearDatabase } from '2shark';
 
-// Сканирование документации
-const options: ScanOptions = {
+// Импорт документации из git-ревизии
+const result = await runImport({
   docsPath: './docs',
-  configPath: './config/category-mapping.yaml',
-  clearBeforeScan: true,
-};
+  configDir: './config',
+  repoPath: '../my-interview.tech',
+  branch: 'main',
+  commitSha: '<sha>',
+  isProductionSync: true,
+});
 
-const items = await parseDatabase(options);
-
-console.log(`Найдено ${items.length} документов`);
+console.log(`Сохранено ${result.saved} документов`);
 
 // Инициализация базы данных
 await initDatabase();
@@ -42,21 +43,115 @@ await clearDatabase();
 ### Использование как CLI
 
 ```bash
-# Сканировать документацию
-2shark parse-db
+# Production import entrypoint
+2shark import --branch main --commit-sha <sha> --production-sync
 
 # Сканировать с кастомными путями
-2shark parse-db -p ./my-docs -c ./my-config.yaml
+2shark import -p ./docs -c ./config --repo-path ../my-interview.tech --branch main --commit-sha <sha> --production-sync
 
-# Очистить базу данных перед сканированием
-2shark parse-db --clear
+# Проверить изменения без записи
+2shark import --check-only --branch main --commit-sha <sha> --production-sync
+
+# Импортировать все файлы без diff
+2shark import --force --branch main --commit-sha <sha> --production-sync
 
 # Инициализировать базу данных
 2shark init-db
 
 # Очистить базу данных
 2shark clear-db
+
 ```
+
+Для production sync automation ожидается `branch=main`; флаг `--clear` для такого сценария запрещён.
+
+### Import observability
+
+Каждый запуск `2shark import` теперь фиксируется в таблице `import_jobs` со статусами lifecycle:
+
+- `pending`
+- `running`
+- `success`
+- `failed`
+
+В `import_jobs` сохраняются `branch`, `commit_sha`, `started_at`, `finished_at`, а также `result` или `error`.
+Это позволяет быстро определить:
+
+- последний успешный импорт;
+- последнюю ошибку импорта и ревизию, на которой она произошла;
+- summary по обработанным документам (`total/created/updated/skipped/archived`).
+
+### Soft delete / archive reconcile
+
+Начиная с `db-0006`, production sync использует reconcile по `uid`:
+
+- статьи, отсутствующие в новой published revision, помечаются как архивные (`is_deleted=true`);
+- physical delete для production read model не используется;
+- если статья возвращается в следующей revision с тем же `uid`, она автоматически восстанавливается в active состояние;
+- archive-операция фиксируется в `import_jobs.result.archived`.
+
+Базовый SQL-фильтр для runtime read model:
+
+```sql
+SELECT *
+FROM articles
+WHERE is_deleted = false;
+```
+
+### Production sync from my-interview.tech
+
+Канонический сценарий `db-0005`: workflow запускается в репозитории `my-interview.tech` на `push` в `main`.
+
+```yaml
+name: production-sync
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install 2shark
+        run: npm install -g 2shark
+
+      - name: Run production sync
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          2shark import \
+            --path ./docs \
+            --config ./scripts/frontmatter/config \
+            --repo-path . \
+            --branch main \
+            --commit-sha ${{ github.sha }} \
+            --production-sync
+```
+
+Требования к интеграции:
+
+- передавать фактический `${{ github.sha }}` опубликованной ревизии;
+- хранить `DATABASE_URL` (или `DB_*`) только в secrets;
+- не печатать secrets в logs;
+- при failed import workflow должен завершаться с ошибкой (exit code != 0).
+
+Smoke-checklist после интеграции:
+
+- merge/push в `main` запускает workflow;
+- запуск из feature branch не пишет в production DB;
+- успешный запуск создаёт `import_job` со статусом `success`;
+- ошибочный запуск создаёт `import_job` со статусом `failed`;
+- rerun того же `commitSha` не создаёт дубли в read model.
 
 ## Разработка
 
@@ -70,7 +165,7 @@ npm run build
 
 ### Структура документации
 
-```
+```text
 docs/
 ├── Frontend/
 │   ├── React/
@@ -167,15 +262,15 @@ Machine Learning:
 
 Конфигурация автоматически применяется при:
 
-- Сканировании документации (`2shark parse-db`)
+- Импорте документации (`2shark import`)
 - Инициализации базы данных (`2shark init-db`)
 - Обновлении существующих записей
 
 ### Примеры использования
 
 ```bash
-# Сканирование с кастомной конфигурацией
-2shark parse-db -c ./my-config.yaml
+# Импорт с кастомной конфигурацией
+2shark import -c ./my-config.yaml --branch main --commit-sha <sha>
 
 # Проверка конфигурации
 cat config/category-mapping.yaml | yq eval '.'
@@ -210,7 +305,7 @@ interface ScanOptions {
 
 ## Структура проекта
 
-```
+```text
 src/
 ├── cli/                    # CLI интерфейс
 │   ├── index.ts           # Точка входа CLI
@@ -220,9 +315,7 @@ src/
 ├── database/              # Работа с базой данных
 │   ├── class/             # Классы для работы с БД
 │   └── lib/               # Утилиты для БД
-├── parseDatabase/         # Сканирование документации
-│   ├── class/             # Основные классы
-│   └── lib/               # Утилиты для парсинга
+├── docScanner/            # Парсинг markdown и frontmatter
 ├── types/                 # TypeScript типы
 │   └── index.ts           # Основные типы
 └── index.ts               # Главный экспорт

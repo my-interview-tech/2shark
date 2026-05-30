@@ -1,6 +1,12 @@
 import { DocItem } from '../../types';
 import { getFileHashes } from '../getFileHashes';
 
+function parseStoredHash(storedHash: string): { fileHash: string; sourceCommitSha: string } {
+  const [fileHash = '', sourceCommitSha = ''] = storedHash.split(':::');
+
+  return { fileHash, sourceCommitSha };
+}
+
 /**
  * Фильтрует документы, оставляя только те, которые изменились
  *
@@ -40,7 +46,7 @@ export async function filterChangedFiles(documents: DocItem[]): Promise<DocItem[
       let existingHash: string | undefined;
 
       for (const [slug, hash] of existingHashes.entries()) {
-        if (slug.startsWith(doc.id + '-')) {
+        if (slug === doc.uid || slug === doc.id || slug.startsWith(doc.id + '-')) {
           existingHash = hash;
           break;
         }
@@ -56,7 +62,10 @@ export async function filterChangedFiles(documents: DocItem[]): Promise<DocItem[
         continue;
       }
 
-      if (existingHash === doc.file_hash) {
+      const { fileHash, sourceCommitSha } = parseStoredHash(existingHash);
+      const isSameCommit = doc.sourceCommitSha ? sourceCommitSha === doc.sourceCommitSha : true;
+
+      if (fileHash === doc.file_hash && isSameCommit) {
         unchangedCount++;
 
         continue;
@@ -66,7 +75,7 @@ export async function filterChangedFiles(documents: DocItem[]): Promise<DocItem[
 
       if (debugCount < 3) {
         console.log(`Отладка: измененный файл ${doc.id}`);
-        console.log(`Хеш в БД: ${existingHash.substring(0, 10)}...`);
+        console.log(`Хеш в БД: ${fileHash.substring(0, 10)}...`);
         console.log(`Новый хеш: ${doc.file_hash.substring(0, 10)}...`);
 
         debugCount++;
