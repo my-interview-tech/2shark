@@ -1,7 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
-import { buildUniqueId } from '../buildUniqueId';
 import { validateLinks } from '../validateLinks';
 import { calculateFileHash } from '../fileHash';
 import { getCleanPathParts } from '../getCleanPathParts';
@@ -43,14 +42,30 @@ export async function processMarkdownFile({
       return null;
     }
 
+    const uid = typeof data?.uid === 'string' ? data.uid.trim() : '';
+
+    if (!uid) {
+      console.error(`Ошибка валидации файла ${filePath}: отсутствует обязательное поле uid`);
+
+      return null;
+    }
+
     const cleanPathParts = getCleanPathParts(filePath);
-    const technology = extractTechnology(cleanPathParts);
+    const technologyFromPath = extractTechnology(cleanPathParts);
+    const technology = typeof data?.technology === 'string' ? data.technology.trim() : technologyFromPath;
 
     const mapping = technologyMapping[technology];
 
-    if (!mapping) return null;
+    if (!mapping) {
+      console.error(`Ошибка валидации файла ${filePath}: технология "${technology}" не найдена в mapping`);
 
-    const { specialty: specialtyConfig, priority = 0, description = '' } = mapping as any;
+      return null;
+    }
+
+    const specialtyFromFrontmatter = typeof data?.specialty === 'string' ? data.specialty.trim() : '';
+    const specialtyConfig = specialtyFromFrontmatter || mapping.specialty;
+    const priority = mapping.priority ?? 0;
+    const description = typeof data?.description === 'string' ? data.description : (mapping.description ?? '');
 
     const specialty = normalizeSpecialty(specialtyConfig);
 
@@ -62,22 +77,77 @@ export async function processMarkdownFile({
       return null;
     }
 
-    const finalId = buildUniqueId(cleanPathParts, filePath);
+    const access = typeof data?.access === 'string' ? data.access.trim() : '';
+
+    if (!access) {
+      console.error(`Ошибка валидации файла ${filePath}: отсутствует обязательное поле access`);
+
+      return null;
+    }
+
+    if (!Array.isArray(data?.tools)) {
+      console.error(`Ошибка валидации файла ${filePath}: поле tools должно быть массивом строк`);
+
+      return null;
+    }
+
+    if (data.tools.some((tool: unknown) => typeof tool !== 'string')) {
+      console.error(`Ошибка валидации файла ${filePath}: поле tools должно содержать только строки`);
+
+      return null;
+    }
+
+    const tools = data.tools;
+
+    const orderValue = typeof data?.order === 'number' ? data.order : Number.NaN;
+
+    if (!Number.isFinite(orderValue)) {
+      console.error(`Ошибка валидации файла ${filePath}: поле order должно быть числом`);
+
+      return null;
+    }
+
+    const createdAt = typeof data?.created_at === 'string' ? new Date(data.created_at) : null;
+    const updatedAt = typeof data?.updated_at === 'string' ? new Date(data.updated_at) : null;
+
+    if (!createdAt || Number.isNaN(createdAt.getTime())) {
+      console.error(`Ошибка валидации файла ${filePath}: поле created_at должно быть валидной датой`);
+
+      return null;
+    }
+
+    if (!updatedAt || Number.isNaN(updatedAt.getTime())) {
+      console.error(`Ошибка валидации файла ${filePath}: поле updated_at должно быть валидной датой`);
+
+      return null;
+    }
+
     const title = data?.title || path.basename(filePath, '.md');
+    if (Array.isArray(data?.tags) && data.tags.some((tag: unknown) => typeof tag !== 'string')) {
+      console.error(`Ошибка валидации файла ${filePath}: поле tags должно содержать только строки`);
+
+      return null;
+    }
+
+    const tags = Array.isArray(data?.tags) ? data.tags : [];
 
     return {
-      id: finalId,
+      id: uid,
+      uid,
       title,
       content: markdownContent,
       specialty,
       technology,
       priority,
       description,
-      tags: data?.tags || [],
+      tags,
       info: validateLinks(data?.info),
+      access,
+      tools,
+      order: orderValue,
       file_hash: calculateFileHash(content),
-      created_at: new Date(),
-      updated_at: new Date(),
+      created_at: createdAt,
+      updated_at: updatedAt,
     };
   } catch (error) {
     console.error(`Ошибка обработки файла ${filePath}:`, error);

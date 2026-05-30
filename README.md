@@ -42,20 +42,31 @@ await clearDatabase();
 ### Использование как CLI
 
 ```bash
-# Сканировать документацию
-2shark parse-db
+# Production import entrypoint
+2shark import
 
 # Сканировать с кастомными путями
-2shark parse-db -p ./my-docs -c ./my-config.yaml
+2shark import -p ./my-docs -c ./my-config
 
-# Очистить базу данных перед сканированием
-2shark parse-db --clear
+# Проверить изменения без записи
+2shark import --check-only
+
+# Импортировать все файлы без diff
+2shark import --force
+
+# Очистить базу данных перед импортом
+2shark import --clear
 
 # Инициализировать базу данных
 2shark init-db
 
 # Очистить базу данных
 2shark clear-db
+
+# Deprecated legacy команды (обратная совместимость)
+2shark parse-db
+2shark check-updates
+2shark update-articles
 ```
 
 ## Разработка

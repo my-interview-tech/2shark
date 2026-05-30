@@ -19,6 +19,9 @@ export const UPDATE_ARTICLES = 'update-articles';
 /** Команда для парсинга базы данных */
 export const PARSE_DB = 'parse-db';
 
+/** Production команда импорта */
+export const IMPORT = 'import';
+
 /** Команда для инициализации базы данных */
 export const INIT_DB = 'init-db';
 

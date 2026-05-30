@@ -28,7 +28,7 @@ jest.mock('../schema', () => ({
     UPSERT_SPECIALTY_TECHNOLOGY_QUERY:
       'INSERT INTO specialty_technology (specialty_id, technology_id, name) VALUES ($1, $2, $3) ON CONFLICT (specialty_id, technology_id) DO UPDATE SET name = EXCLUDED.name RETURNING id',
     INSERT_ARTICLE_QUERY:
-      'INSERT INTO articles (title, slug, content, specialty_id, technology_id, priority, description, file_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+      'INSERT INTO articles (uid, title, slug, content, specialty_id, technology_id, access, tools, article_order, priority, description, file_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id',
     INSERT_TAG_QUERY:
       'INSERT INTO tags (name) VALUES ($1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id',
     INSERT_ARTICLE_TAG_QUERY:
@@ -52,10 +52,14 @@ describe('Unit/helpers/function/saveDocuments', () => {
   const mockDocuments: DocItem[] = [
     {
       id: 'react-hooks',
+      uid: 'react-hooks',
       title: 'React Hooks Guide',
       content: '# React Hooks\n\nОсновы хуков в React...',
       specialty: 'Frontend',
       technology: 'React',
+      access: 'public',
+      tools: ['React'],
+      order: 1,
       priority: 5,
       description: 'Руководство по хукам React',
       tags: ['react', 'hooks', 'frontend'],
@@ -66,10 +70,14 @@ describe('Unit/helpers/function/saveDocuments', () => {
     },
     {
       id: 'typescript-basics',
+      uid: 'typescript-basics',
       title: 'TypeScript Basics',
       content: '# TypeScript\n\nОсновы TypeScript...',
       specialty: 'Frontend',
       technology: 'TypeScript',
+      access: 'public',
+      tools: ['TypeScript'],
+      order: 2,
       priority: 3,
       description: 'Основы TypeScript',
       tags: ['typescript', 'frontend'],

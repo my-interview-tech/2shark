@@ -26,7 +26,7 @@ const CHECK_TABLE_EXISTS_QUERY = `
  * Используется для отслеживания изменений в документации
  */
 const GET_FILE_HASHES_QUERY = `
-      SELECT slug, file_hash 
+      SELECT uid, slug, file_hash 
       FROM articles 
       WHERE file_hash IS NOT NULL
     `;
@@ -84,16 +84,22 @@ const CREATE_SPECIALTY_TECHNOLOGY_TABLE_QUERY = `
 const CREATE_ARTICLES_TABLE_QUERY = `
     CREATE TABLE IF NOT EXISTS articles (
       id SERIAL PRIMARY KEY,
+      uid VARCHAR(255) NOT NULL,
       title VARCHAR(255) NOT NULL,
       slug VARCHAR(255) NOT NULL,
       content TEXT,
       specialty_id INTEGER REFERENCES specialties(id) ON DELETE CASCADE,
       technology_id INTEGER REFERENCES technologies(id) ON DELETE CASCADE,
+      access VARCHAR(64) NOT NULL DEFAULT 'public',
+      tools TEXT[] DEFAULT '{}',
+      article_order INTEGER DEFAULT 0,
       priority INTEGER DEFAULT 0,
       description TEXT,
       file_hash VARCHAR(64),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(slug),
+      UNIQUE(uid, specialty_id)
     )
   `;
 
@@ -259,8 +265,22 @@ const UPSERT_SPECIALTY_TECHNOLOGY_QUERY = `INSERT INTO specialty_technology (spe
  * @param {string} fileHash - Хеш файла для отслеживания изменений
  * @returns {number} - ID созданной статьи
  */
-const INSERT_ARTICLE_QUERY = `INSERT INTO articles (title, slug, content, specialty_id, technology_id, priority, description, file_hash) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+const INSERT_ARTICLE_QUERY = `INSERT INTO articles (uid, title, slug, content, specialty_id, technology_id, access, tools, article_order, priority, description, file_hash, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         ON CONFLICT (slug) DO UPDATE SET
+         uid = EXCLUDED.uid,
+         title = EXCLUDED.title,
+         content = EXCLUDED.content,
+         specialty_id = EXCLUDED.specialty_id,
+         technology_id = EXCLUDED.technology_id,
+         access = EXCLUDED.access,
+         tools = EXCLUDED.tools,
+         article_order = EXCLUDED.article_order,
+         priority = EXCLUDED.priority,
+         description = EXCLUDED.description,
+         file_hash = EXCLUDED.file_hash,
+         created_at = EXCLUDED.created_at,
+         updated_at = EXCLUDED.updated_at
          RETURNING id`;
 
 /**

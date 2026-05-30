@@ -33,10 +33,14 @@ const mockSpecialtyMapping = {
 
 const mockDocItem: DocItem = {
   id: 'test-doc',
+  uid: 'test-doc',
   title: 'Test Document',
   content: '# Test\n\nContent...',
   specialty: 'Test',
   technology: 'test',
+  access: 'public',
+  tools: ['Jest'],
+  order: 1,
   priority: 1,
   description: 'Test description',
   tags: ['test'],
