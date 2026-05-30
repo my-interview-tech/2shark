@@ -80,6 +80,10 @@ export async function saveArticles(
             doc.sourceCommitSha || null,
             doc.sourcePath || null,
             doc.importedAt || new Date(),
+            false,
+            null,
+            null,
+            doc.sourceCommitSha || null,
         ]);
 
         const articleId = articleResult.rows[0].id;

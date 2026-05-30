@@ -82,7 +82,24 @@ await clearDatabase();
 
 - последний успешный импорт;
 - последнюю ошибку импорта и ревизию, на которой она произошла;
-- summary по обработанным документам (`total/created/updated/skipped`).
+- summary по обработанным документам (`total/created/updated/skipped/archived`).
+
+### Soft delete / archive reconcile
+
+Начиная с `db-0006`, production sync использует reconcile по `uid`:
+
+- статьи, отсутствующие в новой published revision, помечаются как архивные (`is_deleted=true`);
+- physical delete для production read model не используется;
+- если статья возвращается в следующей revision с тем же `uid`, она автоматически восстанавливается в active состояние;
+- archive-операция фиксируется в `import_jobs.result.archived`.
+
+Базовый SQL-фильтр для runtime read model:
+
+```sql
+SELECT *
+FROM articles
+WHERE is_deleted = false;
+```
 
 ### Production sync from my-interview.tech
 
