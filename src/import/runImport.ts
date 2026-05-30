@@ -1,6 +1,6 @@
 import { clearDatabase } from '../database';
 import { DB_CONFIG } from '../config';
-import { loadYAMLContent, parseDatabase } from '../docScanner';
+import { loadYAMLContent } from '../docScanner';
 import { filterChangedFiles } from '../helpers';
 import { readRevisionDocuments } from './git-source';
 import { createImportJob, markImportJobFailed, markImportJobRunning, markImportJobSuccess } from './jobs';
@@ -8,7 +8,6 @@ import { reconcilePublishedRevision } from './reconcile';
 import { Pool } from 'pg';
 import { saveDocuments } from '../saveDocuments';
 import {
-  ScanOptions,
   SpecialtyMapping,
   TechnologyMapping,
   TImportJobError,
@@ -20,12 +19,25 @@ import {
 const CATEGORY_MAPPING_FILE = 'category-mapping.yaml';
 const SPECIALTIES_FILE = 'specialties.yaml';
 
+/**
+ * Проверяет, что YAML-конфиг был загружен и содержит хотя бы один ключ.
+ *
+ * @param config - Объект загруженного YAML-конфига.
+ * @param configPath - Путь к конфигу для сообщения об ошибке.
+ * @throws Если конфиг пустой.
+ */
 function assertConfigLoaded(config: Record<string, unknown>, configPath: string): void {
   if (Object.keys(config).length === 0) {
     throw new Error(`Не удалось загрузить конфигурацию: ${configPath}`);
   }
 }
 
+/**
+ * Нормализует неизвестную ошибку import pipeline в JSON-safe payload для `import_jobs.error`.
+ *
+ * @param error - Ошибка, перехваченная в import pipeline.
+ * @returns Объект ошибки для сохранения в `import_jobs`.
+ */
 function toImportJobError(error: unknown): TImportJobError {
   if (error instanceof Error) {
     const importError: TImportJobError = {
@@ -42,6 +54,15 @@ function toImportJobError(error: unknown): TImportJobError {
   return { message: String(error) };
 }
 
+/**
+ * Запускает git revision import: читает markdown из конкретного `branch + commitSha`,
+ * сохраняет измененные документы в PostgreSQL и фиксирует lifecycle в `import_jobs`.
+ *
+ * @param options - Опции import pipeline.
+ * @returns Summary с количеством найденных, измененных, пропущенных и сохраненных документов.
+ * @throws Если не переданы `branch`/`commitSha`, production sync запущен не из `main`,
+ * конфиги пустые, revision недоступна или запись в БД завершилась ошибкой.
+ */
 export async function runImport(options: TRunImportOptions): Promise<TRunImportResult> {
   const {
     docsPath,
@@ -73,34 +94,26 @@ export async function runImport(options: TRunImportOptions): Promise<TRunImportR
       throw new Error('Не удалось создать import job');
     }
     const currentImportJobId = importJobId;
-    const scanOptions: ScanOptions = {
-      docsPath,
-      configPath: {
-        technologyPath: `${configDir}/${CATEGORY_MAPPING_FILE}`,
-        specialtiesPath: `${configDir}/${SPECIALTIES_FILE}`,
-      },
+    const configPath = {
+      technologyPath: `${configDir}/${CATEGORY_MAPPING_FILE}`,
+      specialtiesPath: `${configDir}/${SPECIALTIES_FILE}`,
     };
-
-    const technologyMapping = loadYAMLContent<TechnologyMapping>(scanOptions.configPath.technologyPath);
-    const specialtyMapping = loadYAMLContent<SpecialtyMapping>(scanOptions.configPath.specialtiesPath);
-    assertConfigLoaded(technologyMapping, scanOptions.configPath.technologyPath);
-    assertConfigLoaded(specialtyMapping, scanOptions.configPath.specialtiesPath);
-    const shouldReadRevision = Boolean(branch && commitSha);
-
-    if (shouldReadRevision && shouldClearBeforeImport) {
+    const technologyMapping = loadYAMLContent<TechnologyMapping>(configPath.technologyPath);
+    const specialtyMapping = loadYAMLContent<SpecialtyMapping>(configPath.specialtiesPath);
+    assertConfigLoaded(technologyMapping, configPath.technologyPath);
+    assertConfigLoaded(specialtyMapping, configPath.specialtiesPath);
+    if (shouldClearBeforeImport) {
       throw new Error('Destructive clear запрещен для production revision import');
     }
 
-    const documents = shouldReadRevision
-      ? readRevisionDocuments({
-          repoPath: repoPath || process.cwd(),
-          docsPath,
-          branch,
-          commitSha,
-          technologyMapping,
-          specialtyMapping,
-        })
-      : await parseDatabase(scanOptions);
+    const documents = readRevisionDocuments({
+      repoPath: repoPath || process.cwd(),
+      docsPath,
+      branch,
+      commitSha,
+      technologyMapping,
+      specialtyMapping,
+    });
     const changedDocuments = shouldForce ? documents : await filterChangedFiles(documents);
     const skipped = documents.length - changedDocuments.length;
 

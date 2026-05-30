@@ -1,6 +1,6 @@
 import { runImport } from './runImport';
 import { clearDatabase } from '../database';
-import { loadYAMLContent, parseDatabase } from '../docScanner';
+import { loadYAMLContent } from '../docScanner';
 import { filterChangedFiles } from '../helpers';
 import { saveDocuments } from '../saveDocuments';
 import { readRevisionDocuments } from './git-source';
@@ -15,7 +15,6 @@ jest.mock('../database', () => ({
 }));
 
 jest.mock('../docScanner', () => ({
-  parseDatabase: jest.fn(),
   loadYAMLContent: jest.fn(),
 }));
 
@@ -108,7 +107,6 @@ describe('Unit/import/function/runImport', () => {
 
       return { Frontend: { priority: 1, description: 'Frontend' } } as ReturnType<typeof loadYAMLContent>;
     });
-    (parseDatabase as jest.MockedFunction<typeof parseDatabase>).mockResolvedValue(mockDocuments);
     (filterChangedFiles as jest.MockedFunction<typeof filterChangedFiles>).mockResolvedValue([mockDocuments[0]]);
     (readRevisionDocuments as jest.MockedFunction<typeof readRevisionDocuments>).mockReturnValue(mockDocuments);
     (createImportJob as jest.MockedFunction<typeof createImportJob>).mockResolvedValue('1');
@@ -222,7 +220,6 @@ describe('Unit/import/function/runImport', () => {
           commitSha: 'abc123',
         }),
       );
-      expect(parseDatabase).not.toHaveBeenCalled();
     });
   });
 

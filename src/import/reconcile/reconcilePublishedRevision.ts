@@ -10,6 +10,17 @@ type TReconcilePublishedRevisionInput = {
 
 type TReconcileClient = Pick<PoolClient, 'query'>;
 
+/**
+ * Архивирует статьи production read model, которые отсутствуют в импортированной published revision.
+ *
+ * Reconcile разрешен только для `branch=main`: он сравнивает активные `articles.uid`
+ * с uid документов текущего импорта и помечает отсутствующие записи как `is_deleted=true`.
+ *
+ * @param client - PostgreSQL client с методом `query`.
+ * @param input - Import job metadata и список uid, найденных в текущей revision.
+ * @returns Количество архивированных статей.
+ * @throws Если branch не `main`, commitSha пустой или список импортированных uid пуст.
+ */
 export async function reconcilePublishedRevision(
   client: TReconcileClient,
   input: TReconcilePublishedRevisionInput,

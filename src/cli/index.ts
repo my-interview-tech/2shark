@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { execFileSync } from 'child_process';
 import { initDatabase, clearDatabase } from '../database';
 import { runImport } from '../import';
-import { CheckUpdatesOptions, ParseDbOptions, TRunImportOptions, UpdateArticlesOptions } from '../types';
+import { TRunImportOptions } from '../types';
 import {
   COMMAND_DESCRIPTION,
   COMMAND_NAME,
@@ -13,9 +12,6 @@ import {
   DOCS_PATH,
   IMPORT,
   INIT_DB,
-  PARSE_DB,
-  CHECK_UPDATES,
-  UPDATE_ARTICLES,
   CLEAR_DB,
   flagsCheckOnly,
   flagsClear,
@@ -42,10 +38,22 @@ type TImportCliOptions = {
   force?: boolean;
 };
 
+/**
+ * Возвращает директорию конфигурации для import pipeline.
+ *
+ * @param options - CLI-опции с возможными алиасами пути к конфигу.
+ * @returns Путь к директории конфигурации или дефолтный `CONFIG_PATH`.
+ */
 function resolveConfigDir(options: { config?: string; configDir?: string }): string {
   return options.config || options.configDir || CONFIG_PATH;
 }
 
+/**
+ * Преобразует CLI-опции Commander в контракт `runImport`.
+ *
+ * @param options - Опции команды `2shark import`.
+ * @returns Нормализованные опции production import pipeline.
+ */
 function toImportOptions(options: TImportCliOptions): TRunImportOptions {
   return {
     docsPath: options.path || DOCS_PATH,
@@ -60,29 +68,12 @@ function toImportOptions(options: TImportCliOptions): TRunImportOptions {
   };
 }
 
-function resolveGitRevisionOrThrow(repoPath: string): { branch: string; commitSha: string } {
-  try {
-    const branch = execFileSync('git', ['branch', '--show-current'], {
-      cwd: repoPath,
-      encoding: 'utf-8',
-    }).trim();
-    const commitSha = execFileSync('git', ['rev-parse', 'HEAD'], {
-      cwd: repoPath,
-      encoding: 'utf-8',
-    }).trim();
-
-    if (!branch || !commitSha) {
-      throw new Error('Не удалось определить branch/commitSha');
-    }
-
-    return { branch, commitSha };
-  } catch {
-    throw new Error(
-      'Не удалось определить git revision для legacy-команды. Используйте `2shark import --branch <name> --commit-sha <sha>`',
-    );
-  }
-}
-
+/**
+ * Проверяет наличие обязательной git-ревизии для production import.
+ *
+ * @param options - Опции команды `2shark import`.
+ * @throws Если не передан `--branch` или `--commit-sha`.
+ */
 function assertRevisionOptions(options: TImportCliOptions): void {
   if (!options.branch) {
     throw new Error('Для production import обязательно передать --branch');
@@ -93,6 +84,11 @@ function assertRevisionOptions(options: TImportCliOptions): void {
   }
 }
 
+/**
+ * Печатает краткую статистику выполнения import pipeline.
+ *
+ * @param result - Summary результата импорта.
+ */
 function printImportSummary(result: { total: number; changed: number; skipped: number; saved: number }): void {
   console.log('Статистика:');
   console.log(`Всего файлов: ${result.total}`);
@@ -101,10 +97,11 @@ function printImportSummary(result: { total: number; changed: number; skipped: n
   console.log(`Сохранено: ${result.saved}`);
 }
 
-function printDeprecatedCommandWarning(command: string): void {
-  console.warn(`[DEPRECATED] Команда "${command}" является legacy. Используйте "2shark import".`);
-}
-
+/**
+ * Регистрирует CLI-команды и запускает парсинг аргументов процесса.
+ *
+ * @returns Promise, который завершается после обработки команды Commander.
+ */
 async function main() {
   const program = new Command();
 
@@ -146,34 +143,6 @@ async function main() {
       }
     });
 
-  /** @deprecated Используйте команду `2shark import` */
-  program
-    .command(PARSE_DB)
-    .description('Deprecated legacy: парсить документацию и сохранить в базу данных')
-    .option(flagsPath, 'Путь к документации', DOCS_PATH)
-    .option(flagsConfig, 'Путь к конфигурационным файлам', CONFIG_PATH)
-    .option(flagsClear, 'Очистить базу данных перед парсингом')
-    .option(flagsCheckOnly, 'Проверить обновления без сохранения')
-    .action(async (options: ParseDbOptions) => {
-      try {
-        printDeprecatedCommandWarning(PARSE_DB);
-        console.log('Запуск legacy команды parse-db через import pipeline...');
-        const revision = resolveGitRevisionOrThrow(process.cwd());
-        const result = await runImport({
-          ...toImportOptions(options),
-          repoPath: process.cwd(),
-          branch: revision.branch,
-          commitSha: revision.commitSha,
-          shouldForce: !options.checkOnly,
-        });
-
-        printImportSummary(result);
-      } catch (error) {
-        console.error('Ошибка при парсинге:', error);
-        process.exit(1);
-      }
-    });
-
   program
     .command(IMPORT)
     .description('Production import entrypoint')
@@ -193,58 +162,6 @@ async function main() {
         printImportSummary(result);
       } catch (error) {
         console.error('Ошибка при импорте:', error);
-        process.exit(1);
-      }
-    });
-
-  /** @deprecated Используйте команду `2shark import --check-only` */
-  program
-    .command(CHECK_UPDATES)
-    .description('Deprecated legacy: проверить какие файлы требуют обновления')
-    .option(flagsPath, 'Путь к документации', DOCS_PATH)
-    .option(flagsConfig, 'Путь к конфигурационным файлам', CONFIG_PATH)
-    .option(flagsCheckOnly, 'Проверить обновления без сохранения')
-    .action(async (options: CheckUpdatesOptions) => {
-      try {
-        printDeprecatedCommandWarning(CHECK_UPDATES);
-        const revision = resolveGitRevisionOrThrow(process.cwd());
-        const result = await runImport({
-          ...toImportOptions(options),
-          repoPath: process.cwd(),
-          branch: revision.branch,
-          commitSha: revision.commitSha,
-          shouldCheckOnly: true,
-          shouldForce: false,
-        });
-        printImportSummary(result);
-      } catch (error) {
-        console.error('Ошибка при проверке обновлений:', error);
-        process.exit(1);
-      }
-    });
-
-  /** @deprecated Используйте команду `2shark import` (или `--force`) */
-  program
-    .command(UPDATE_ARTICLES)
-    .description('Deprecated legacy: обновить измененные статьи в базе данных')
-    .option(flagsPath, 'Путь к документации', DOCS_PATH)
-    .option(flagsConfig, 'Путь к конфигурационным файлам', CONFIG_PATH)
-    .option(flagsForce, 'Сохранить все документы без diff')
-    .action(async (options: UpdateArticlesOptions) => {
-      try {
-        printDeprecatedCommandWarning(UPDATE_ARTICLES);
-        const revision = resolveGitRevisionOrThrow(process.cwd());
-        const result = await runImport({
-          ...toImportOptions(options),
-          repoPath: process.cwd(),
-          branch: revision.branch,
-          commitSha: revision.commitSha,
-          shouldForce: Boolean(options.force),
-          shouldCheckOnly: false,
-        });
-        printImportSummary(result);
-      } catch (error) {
-        console.error('Ошибка при обновлении статей:', error);
         process.exit(1);
       }
     });

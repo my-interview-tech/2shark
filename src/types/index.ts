@@ -151,8 +151,6 @@ export type DocItem = {
  *   databaseUrl: 'postgresql://user:pass@localhost:5432/db',
  *   clearBeforeScan: false
  * };
- *
- * const items = await parseDatabase(options);
  * ```
  */
 export type ScanOptions = {
@@ -215,25 +213,6 @@ export type DatabaseConfig = {
   user: string;
   /** Пароль пользователя (по умолчанию: 'password') */
   password: string;
-};
-
-type BaseOptions = {
-  path: string;
-  config: string;
-  configDir?: string;
-};
-
-export type ParseDbOptions = BaseOptions & {
-  clear: boolean;
-  checkOnly: boolean;
-};
-
-export type CheckUpdatesOptions = BaseOptions & {
-  checkOnly: boolean;
-};
-
-export type UpdateArticlesOptions = BaseOptions & {
-  force: boolean;
 };
 
 export type TRunImportOptions = {

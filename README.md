@@ -19,18 +19,19 @@ npm install -g 2shark
 ### Импорт и использование в коде
 
 ```typescript
-import { parseDatabase, initDatabase, clearDatabase, ScanOptions } from '2shark';
+import { runImport, initDatabase, clearDatabase } from '2shark';
 
-// Сканирование документации
-const options: ScanOptions = {
+// Импорт документации из git-ревизии
+const result = await runImport({
   docsPath: './docs',
-  configPath: './config/category-mapping.yaml',
-  clearBeforeScan: true,
-};
+  configDir: './config',
+  repoPath: '../my-interview.tech',
+  branch: 'main',
+  commitSha: '<sha>',
+  isProductionSync: true,
+});
 
-const items = await parseDatabase(options);
-
-console.log(`Найдено ${items.length} документов`);
+console.log(`Сохранено ${result.saved} документов`);
 
 // Инициализация базы данных
 await initDatabase();
@@ -60,10 +61,6 @@ await clearDatabase();
 # Очистить базу данных
 2shark clear-db
 
-# Deprecated legacy команды (обратная совместимость)
-2shark parse-db
-2shark check-updates
-2shark update-articles
 ```
 
 Для production sync automation ожидается `branch=main`; флаг `--clear` для такого сценария запрещён.
@@ -168,7 +165,7 @@ npm run build
 
 ### Структура документации
 
-```
+```text
 docs/
 ├── Frontend/
 │   ├── React/
@@ -265,15 +262,15 @@ Machine Learning:
 
 Конфигурация автоматически применяется при:
 
-- Сканировании документации (`2shark parse-db`)
+- Импорте документации (`2shark import`)
 - Инициализации базы данных (`2shark init-db`)
 - Обновлении существующих записей
 
 ### Примеры использования
 
 ```bash
-# Сканирование с кастомной конфигурацией
-2shark parse-db -c ./my-config.yaml
+# Импорт с кастомной конфигурацией
+2shark import -c ./my-config.yaml --branch main --commit-sha <sha>
 
 # Проверка конфигурации
 cat config/category-mapping.yaml | yq eval '.'
@@ -308,7 +305,7 @@ interface ScanOptions {
 
 ## Структура проекта
 
-```
+```text
 src/
 ├── cli/                    # CLI интерфейс
 │   ├── index.ts           # Точка входа CLI
@@ -318,9 +315,7 @@ src/
 ├── database/              # Работа с базой данных
 │   ├── class/             # Классы для работы с БД
 │   └── lib/               # Утилиты для БД
-├── parseDatabase/         # Сканирование документации
-│   ├── class/             # Основные классы
-│   └── lib/               # Утилиты для парсинга
+├── docScanner/            # Парсинг markdown и frontmatter
 ├── types/                 # TypeScript типы
 │   └── index.ts           # Основные типы
 └── index.ts               # Главный экспорт

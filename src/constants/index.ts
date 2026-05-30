@@ -10,15 +10,6 @@ export const COMMAND_VERSION = '2.0.1';
 // Нейминг скриптов
 // ============================================================================
 
-/** Команда для проверки обновлений */
-export const CHECK_UPDATES = 'check-updates';
-
-/** Команда для обновления статей */
-export const UPDATE_ARTICLES = 'update-articles';
-
-/** Команда для парсинга базы данных */
-export const PARSE_DB = 'parse-db';
-
 /** Production команда импорта */
 export const IMPORT = 'import';
 
