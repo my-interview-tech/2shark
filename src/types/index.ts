@@ -262,7 +262,15 @@ export type TImportJobResult = {
   created: number;
   updated: number;
   skipped: number;
-  archived?: number;
+  archived: number;
+};
+
+export type TArticleArchiveState = {
+  uid: string;
+  isDeleted: boolean;
+  archivedAt: Date | null;
+  archivedByImportJobId: string | null;
+  lastSeenCommitSha: string | null;
 };
 
 export type TImportJobError = {

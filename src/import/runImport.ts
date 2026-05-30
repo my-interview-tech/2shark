@@ -4,6 +4,7 @@ import { loadYAMLContent, parseDatabase } from '../docScanner';
 import { filterChangedFiles } from '../helpers';
 import { readRevisionDocuments } from './git-source';
 import { createImportJob, markImportJobFailed, markImportJobRunning, markImportJobSuccess } from './jobs';
+import { reconcilePublishedRevision } from './reconcile';
 import { Pool } from 'pg';
 import { saveDocuments } from '../saveDocuments';
 import {
@@ -68,6 +69,10 @@ export async function runImport(options: TRunImportOptions): Promise<TRunImportR
   try {
     importJobId = await createImportJob(jobsClient, { branch, commitSha });
     await markImportJobRunning(jobsClient, importJobId);
+    if (!importJobId) {
+      throw new Error('Не удалось создать import job');
+    }
+    const currentImportJobId = importJobId;
     const scanOptions: ScanOptions = {
       docsPath,
       configPath: {
@@ -111,6 +116,7 @@ export async function runImport(options: TRunImportOptions): Promise<TRunImportR
         created: 0,
         updated: 0,
         skipped,
+        archived: 0,
       };
       await markImportJobSuccess(jobsClient, importJobId, checkOnlyJobResult);
       return checkOnlyResult;
@@ -120,11 +126,31 @@ export async function runImport(options: TRunImportOptions): Promise<TRunImportR
       await clearDatabase();
     }
 
+    let archivedCount = 0;
     if (changedDocuments.length > 0) {
       await saveDocuments({
         documents: changedDocuments,
         technologyMapping,
         specialtyMapping,
+        afterSave: isProductionSync
+          ? async ({ client }) => {
+              archivedCount = await reconcilePublishedRevision(client, {
+                importJobId: currentImportJobId,
+                branch,
+                commitSha,
+                importedUids: documents.map((document) => document.uid),
+              });
+            }
+          : undefined,
+      });
+    }
+
+    if (isProductionSync && changedDocuments.length === 0) {
+      archivedCount = await reconcilePublishedRevision(jobsClient, {
+        importJobId: currentImportJobId,
+        branch,
+        commitSha,
+        importedUids: documents.map((document) => document.uid),
       });
     }
 
@@ -139,8 +165,9 @@ export async function runImport(options: TRunImportOptions): Promise<TRunImportR
       created: 0,
       updated: changedDocuments.length,
       skipped,
+      archived: archivedCount,
     };
-    await markImportJobSuccess(jobsClient, importJobId, importJobResult);
+    await markImportJobSuccess(jobsClient, currentImportJobId, importJobResult);
 
     return importResult;
   } catch (error) {

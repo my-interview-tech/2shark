@@ -31,6 +31,12 @@ const GET_FILE_HASHES_QUERY = `
       WHERE file_hash IS NOT NULL
     `;
 
+const SELECT_ACTIVE_ARTICLE_UIDS_QUERY = `
+      SELECT uid
+      FROM articles
+      WHERE is_deleted = false
+    `;
+
 const SELECT_LAST_SUCCESS_IMPORT_JOB_QUERY = `
       SELECT id, branch, commit_sha, status, started_at, finished_at, result, error
       FROM import_jobs
@@ -110,9 +116,17 @@ const CREATE_ARTICLES_TABLE_QUERY = `
       source_commit_sha VARCHAR(255),
       source_path TEXT,
       imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      is_deleted BOOLEAN NOT NULL DEFAULT false,
+      archived_at TIMESTAMP NULL,
+      archived_by_import_job_id BIGINT NULL,
+      last_seen_commit_sha VARCHAR(255),
       UNIQUE(slug),
       UNIQUE(uid)
     )
+  `;
+
+const CREATE_ARTICLES_IS_DELETED_INDEX_QUERY = `
+    CREATE INDEX IF NOT EXISTS idx_articles_is_deleted ON articles (is_deleted)
   `;
 
 /**
@@ -293,8 +307,8 @@ const UPSERT_SPECIALTY_TECHNOLOGY_QUERY = `INSERT INTO specialty_technology (spe
  * @param {string} fileHash - Хеш файла для отслеживания изменений
  * @returns {number} - ID созданной статьи
  */
-const INSERT_ARTICLE_QUERY = `INSERT INTO articles (uid, title, slug, content, specialty_id, technology_id, access, tools, article_order, priority, description, file_hash, created_at, updated_at, source_branch, source_commit_sha, source_path, imported_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+const INSERT_ARTICLE_QUERY = `INSERT INTO articles (uid, title, slug, content, specialty_id, technology_id, access, tools, article_order, priority, description, file_hash, created_at, updated_at, source_branch, source_commit_sha, source_path, imported_at, is_deleted, archived_at, archived_by_import_job_id, last_seen_commit_sha)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
          ON CONFLICT (uid) DO UPDATE SET
          uid = EXCLUDED.uid,
          title = EXCLUDED.title,
@@ -312,7 +326,11 @@ const INSERT_ARTICLE_QUERY = `INSERT INTO articles (uid, title, slug, content, s
          source_branch = EXCLUDED.source_branch,
          source_commit_sha = EXCLUDED.source_commit_sha,
          source_path = EXCLUDED.source_path,
-         imported_at = EXCLUDED.imported_at
+         imported_at = EXCLUDED.imported_at,
+         is_deleted = false,
+         archived_at = NULL,
+         archived_by_import_job_id = NULL,
+         last_seen_commit_sha = EXCLUDED.last_seen_commit_sha
          RETURNING id`;
 
 /**
@@ -371,10 +389,18 @@ const UPDATE_IMPORT_JOB_FAILED_QUERY = `UPDATE import_jobs
          updated_at = CURRENT_TIMESTAMP
          WHERE id = $1`;
 
+const ARCHIVE_ARTICLES_BY_UIDS_QUERY = `UPDATE articles
+         SET is_deleted = true,
+         archived_at = CURRENT_TIMESTAMP,
+         archived_by_import_job_id = $1
+         WHERE is_deleted = false
+         AND uid = ANY($2::text[])`;
+
 export const SCHEMA = {
   // SELECT queries
   CHECK_TABLE_EXISTS_QUERY,
   GET_FILE_HASHES_QUERY,
+  SELECT_ACTIVE_ARTICLE_UIDS_QUERY,
   SELECT_LAST_SUCCESS_IMPORT_JOB_QUERY,
 
   // CREATE TABLE queries
@@ -382,6 +408,7 @@ export const SCHEMA = {
   CREATE_TECHNOLOGIES_TABLE_QUERY,
   CREATE_SPECIALTY_TECHNOLOGY_TABLE_QUERY,
   CREATE_ARTICLES_TABLE_QUERY,
+  CREATE_ARTICLES_IS_DELETED_INDEX_QUERY,
   CREATE_TAGS_TABLE_QUERY,
   CREATE_ARTICLE_TAGS_TABLE_QUERY,
   CREATE_ARTICLE_LINKS_TABLE_QUERY,
@@ -415,4 +442,5 @@ export const SCHEMA = {
   UPDATE_IMPORT_JOB_RUNNING_QUERY,
   UPDATE_IMPORT_JOB_SUCCESS_QUERY,
   UPDATE_IMPORT_JOB_FAILED_QUERY,
+  ARCHIVE_ARTICLES_BY_UIDS_QUERY,
 } as const;

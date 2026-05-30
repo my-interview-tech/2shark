@@ -5,6 +5,7 @@ import { filterChangedFiles } from '../helpers';
 import { saveDocuments } from '../saveDocuments';
 import { readRevisionDocuments } from './git-source';
 import { createImportJob, markImportJobFailed, markImportJobRunning, markImportJobSuccess } from './jobs';
+import { reconcilePublishedRevision } from './reconcile';
 import { DESCRIBE_CASES } from '../helpers/test';
 import { DocItem } from '../types';
 import { Pool } from 'pg';
@@ -35,6 +36,10 @@ jest.mock('./jobs', () => ({
   markImportJobRunning: jest.fn(),
   markImportJobSuccess: jest.fn(),
   markImportJobFailed: jest.fn(),
+}));
+
+jest.mock('./reconcile', () => ({
+  reconcilePublishedRevision: jest.fn(),
 }));
 
 jest.mock('pg', () => ({
@@ -107,6 +112,12 @@ describe('Unit/import/function/runImport', () => {
     (filterChangedFiles as jest.MockedFunction<typeof filterChangedFiles>).mockResolvedValue([mockDocuments[0]]);
     (readRevisionDocuments as jest.MockedFunction<typeof readRevisionDocuments>).mockReturnValue(mockDocuments);
     (createImportJob as jest.MockedFunction<typeof createImportJob>).mockResolvedValue('1');
+    (reconcilePublishedRevision as jest.MockedFunction<typeof reconcilePublishedRevision>).mockResolvedValue(0);
+    (saveDocuments as jest.MockedFunction<typeof saveDocuments>).mockImplementation(async (params: any) => {
+      if (params.afterSave) {
+        await params.afterSave({ client: mockJobsClient, importedUids: ['uid-1', 'uid-2'] });
+      }
+    });
   });
 
   describe(DESCRIBE_CASES.SUCCESS, () => {
@@ -129,6 +140,7 @@ describe('Unit/import/function/runImport', () => {
       });
       expect(saveDocuments).not.toHaveBeenCalled();
       expect(markImportJobSuccess).toHaveBeenCalled();
+      expect(reconcilePublishedRevision).not.toHaveBeenCalled();
     });
 
     it('Должна сохранить changed документы и вернуть summary', async () => {
@@ -157,7 +169,40 @@ describe('Unit/import/function/runImport', () => {
         commitSha: 'abc123',
       });
       expect(markImportJobRunning).toHaveBeenCalledWith(expect.any(Object), '1');
-      expect(markImportJobSuccess).toHaveBeenCalled();
+      expect(reconcilePublishedRevision).toHaveBeenCalledWith(expect.any(Object), {
+        importJobId: '1',
+        branch: 'main',
+        commitSha: 'abc123',
+        importedUids: ['uid-1', 'uid-2'],
+      });
+      expect(markImportJobSuccess).toHaveBeenCalledWith(expect.any(Object), '1', {
+        total: 2,
+        created: 0,
+        updated: 1,
+        skipped: 1,
+        archived: 0,
+      });
+    });
+
+    it('Должна записывать archived count в import job result', async () => {
+      (reconcilePublishedRevision as jest.MockedFunction<typeof reconcilePublishedRevision>).mockResolvedValue(2);
+
+      await runImport({
+        docsPath: './docs',
+        configDir: './config',
+        repoPath: '/tmp/repo',
+        branch: 'main',
+        commitSha: 'abc123',
+        isProductionSync: true,
+      });
+
+      expect(markImportJobSuccess).toHaveBeenCalledWith(expect.any(Object), '1', {
+        total: 2,
+        created: 0,
+        updated: 1,
+        skipped: 1,
+        archived: 2,
+      });
     });
 
     it('Должна читать документы из git revision при переданных branch и commitSha', async () => {
@@ -276,6 +321,25 @@ describe('Unit/import/function/runImport', () => {
           isProductionSync: true,
         }),
       ).rejects.toThrow('только для branch=main');
+    });
+
+    it('Должна вернуть ошибку и failed job при пустом imported uid set', async () => {
+      (readRevisionDocuments as jest.MockedFunction<typeof readRevisionDocuments>).mockReturnValue([]);
+      (filterChangedFiles as jest.MockedFunction<typeof filterChangedFiles>).mockResolvedValue([]);
+      (reconcilePublishedRevision as jest.MockedFunction<typeof reconcilePublishedRevision>).mockRejectedValue(
+        new Error('Пустой imported uid set запрещен для production archive reconcile'),
+      );
+
+      await expect(
+        runImport({
+          docsPath: './docs',
+          configDir: './config',
+          branch: 'main',
+          commitSha: 'abc123',
+          isProductionSync: true,
+        }),
+      ).rejects.toThrow('Пустой imported uid set запрещен');
+      expect(markImportJobFailed).toHaveBeenCalled();
     });
 
     it('Должна пробрасывать исходную ошибку если сохранение failed job тоже упало', async () => {

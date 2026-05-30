@@ -22,7 +22,7 @@ import { TSaveDocuments } from './types';
  * @throws {Error} При ошибках подключения к базе данных или сохранения
  */
 export async function saveDocuments(
-  { documents, config, technologyMapping, specialtyMapping }: TSaveDocuments,
+  { documents, config, technologyMapping, specialtyMapping, afterSave }: TSaveDocuments,
 ): Promise<void> {
   const dbConfig = config || DB_CONFIG;
   const pool = new Pool(dbConfig);
@@ -52,6 +52,11 @@ export async function saveDocuments(
       technologyMapping,
       debug
     });
+
+    if (afterSave) {
+      const importedUids = Array.from(new Set(documents.map((document) => document.uid).filter(Boolean)));
+      await afterSave({ client, importedUids });
+    }
 
     await client.query('COMMIT');
 

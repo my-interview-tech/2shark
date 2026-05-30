@@ -42,6 +42,7 @@ describe('Unit/import/function/importJobs', () => {
         created: 2,
         updated: 5,
         skipped: 3,
+        archived: 0,
       });
       expect(client.query).toHaveBeenCalled();
     });
@@ -66,7 +67,7 @@ describe('Unit/import/function/importJobs', () => {
             status: 'success',
             started_at: startedAt,
             finished_at: finishedAt,
-            result: { total: 1, created: 1, updated: 0, skipped: 0 },
+            result: { total: 1, created: 1, updated: 0, skipped: 0, archived: 0 },
             error: null,
           },
         ],
@@ -81,7 +82,7 @@ describe('Unit/import/function/importJobs', () => {
         status: 'success',
         startedAt,
         finishedAt,
-        result: { total: 1, created: 1, updated: 0, skipped: 0 },
+        result: { total: 1, created: 1, updated: 0, skipped: 0, archived: 0 },
         error: null,
       });
     });

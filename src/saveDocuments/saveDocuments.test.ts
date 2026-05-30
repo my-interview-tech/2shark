@@ -368,6 +368,40 @@ describe('Unit/helpers/function/saveDocuments', () => {
       expect(mockPoolInstance.end).toHaveBeenCalled();
     });
 
+    it('Должна откатывать транзакцию при ошибке post-save hook', async () => {
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // BEGIN
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPSERT_SPECIALTY_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPSERT_TECHNOLOGY_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPSERT_TECHNOLOGY_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_ARTICLE_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_TAG_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_ARTICLE_TAG_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_TAG_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_ARTICLE_TAG_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_TAG_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_ARTICLE_TAG_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_ARTICLE_LINK_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 2 }] }) // INSERT_ARTICLE_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_TAG_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_ARTICLE_TAG_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_TAG_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_ARTICLE_TAG_QUERY
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // INSERT_ARTICLE_LINK_QUERY
+        .mockResolvedValueOnce({ rows: [] }); // ROLLBACK
+
+      await expect(
+        saveDocuments({
+          documents: mockDocuments,
+          afterSave: async () => {
+            throw new Error('reconcile failed');
+          },
+        }),
+      ).rejects.toThrow('reconcile failed');
+
+      expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+    });
+
     it('Должна обрабатывать ошибку подключения к базе данных', async () => {
       const connectionError = new Error('Connection failed');
       mockPoolInstance.connect.mockRejectedValue(connectionError);
