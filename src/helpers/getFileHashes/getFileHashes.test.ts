@@ -21,7 +21,7 @@ jest.mock('pg', () => ({
 
 jest.mock('../../schema', () => ({
   SCHEMA: {
-    GET_FILE_HASHES_QUERY: 'SELECT slug, file_hash FROM articles WHERE file_hash IS NOT NULL',
+    GET_FILE_HASHES_QUERY: 'SELECT uid, slug, file_hash, source_commit_sha FROM articles WHERE file_hash IS NOT NULL',
   },
 }));
 
@@ -48,9 +48,9 @@ describe('Unit/helpers/function/getFileHashes', () => {
   describe(DESCRIBE_CASES.SUCCESS, () => {
     it('Должна вернуть Map с хешами файлов при успешном запросе', async () => {
       const mockRows = [
-        { slug: 'react-hooks', file_hash: 'abc123hash1' },
-        { slug: 'typescript-basics', file_hash: 'def456hash2' },
-        { slug: 'nodejs-api', file_hash: 'ghi789hash3' },
+        { slug: 'react-hooks', file_hash: 'abc123hash1', source_commit_sha: 'sha1' },
+        { slug: 'typescript-basics', file_hash: 'def456hash2', source_commit_sha: 'sha2' },
+        { slug: 'nodejs-api', file_hash: 'ghi789hash3', source_commit_sha: 'sha3' },
       ];
 
       mockClient.query.mockResolvedValue({ rows: mockRows });
@@ -65,9 +65,9 @@ describe('Unit/helpers/function/getFileHashes', () => {
 
       expect(result).toBeInstanceOf(Map);
       expect(result.size).toBe(3);
-      expect(result.get('react-hooks')).toBe('abc123hash1');
-      expect(result.get('typescript-basics')).toBe('def456hash2');
-      expect(result.get('nodejs-api')).toBe('ghi789hash3');
+      expect(result.get('react-hooks')).toBe('abc123hash1:::sha1');
+      expect(result.get('typescript-basics')).toBe('def456hash2:::sha2');
+      expect(result.get('nodejs-api')).toBe('ghi789hash3:::sha3');
     });
 
     it('Должна вернуть пустой Map когда нет хешей в базе', async () => {
@@ -106,55 +106,55 @@ describe('Unit/helpers/function/getFileHashes', () => {
     });
 
     it('Должна корректно обрабатывать один хеш', async () => {
-      const mockRows = [{ slug: 'single-article', file_hash: 'single123hash' }];
+      const mockRows = [{ slug: 'single-article', file_hash: 'single123hash', source_commit_sha: 'sha-single' }];
 
       mockClient.query.mockResolvedValue({ rows: mockRows });
 
       const result = await getFileHashes();
 
       expect(result.size).toBe(1);
-      expect(result.get('single-article')).toBe('single123hash');
+      expect(result.get('single-article')).toBe('single123hash:::sha-single');
     });
   });
 
   describe(DESCRIBE_CASES.EDGE, () => {
     it('Должна корректно обрабатывать хеши с очень длинными значениями', async () => {
       const longHash = 'a'.repeat(1000);
-      const mockRows = [{ slug: 'long-hash-article', file_hash: longHash }];
+      const mockRows = [{ slug: 'long-hash-article', file_hash: longHash, source_commit_sha: 'sha-long' }];
 
       mockClient.query.mockResolvedValue({ rows: mockRows });
 
       const result = await getFileHashes();
 
-      expect(result.get('long-hash-article')).toBe(longHash);
-      expect(result.get('long-hash-article')).toHaveLength(1000);
+      expect(result.get('long-hash-article')).toBe(`${longHash}:::sha-long`);
+      expect(result.get('long-hash-article')).toHaveLength(1011);
     });
 
     it('Должна корректно обрабатывать хеши с специальными символами', async () => {
       const specialHash = 'abc123!@#$%^&*()_+-=[]{}|;:,.<>?';
-      const mockRows = [{ slug: 'special-chars', file_hash: specialHash }];
+      const mockRows = [{ slug: 'special-chars', file_hash: specialHash, source_commit_sha: 'sha-special' }];
 
       mockClient.query.mockResolvedValue({ rows: mockRows });
 
       const result = await getFileHashes();
 
-      expect(result.get('special-chars')).toBe(specialHash);
+      expect(result.get('special-chars')).toBe(`${specialHash}:::sha-special`);
     });
 
     it('Должна корректно обрабатывать slug с дефисами и подчеркиваниями', async () => {
       const mockRows = [
-        { slug: 'react-hooks-guide', file_hash: 'hash1' },
-        { slug: 'typescript_basics', file_hash: 'hash2' },
-        { slug: 'node.js-api', file_hash: 'hash3' },
+        { slug: 'react-hooks-guide', file_hash: 'hash1', source_commit_sha: 'sha1' },
+        { slug: 'typescript_basics', file_hash: 'hash2', source_commit_sha: 'sha2' },
+        { slug: 'node.js-api', file_hash: 'hash3', source_commit_sha: 'sha3' },
       ];
 
       mockClient.query.mockResolvedValue({ rows: mockRows });
 
       const result = await getFileHashes();
 
-      expect(result.get('react-hooks-guide')).toBe('hash1');
-      expect(result.get('typescript_basics')).toBe('hash2');
-      expect(result.get('node.js-api')).toBe('hash3');
+      expect(result.get('react-hooks-guide')).toBe('hash1:::sha1');
+      expect(result.get('typescript_basics')).toBe('hash2:::sha2');
+      expect(result.get('node.js-api')).toBe('hash3:::sha3');
     });
   });
 

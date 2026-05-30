@@ -43,19 +43,16 @@ await clearDatabase();
 
 ```bash
 # Production import entrypoint
-2shark import
+2shark import --branch master --commit-sha <sha>
 
 # Сканировать с кастомными путями
-2shark import -p ./my-docs -c ./my-config
+2shark import -p ./docs -c ./config --repo-path ../my-interview.tech --branch master --commit-sha <sha>
 
 # Проверить изменения без записи
-2shark import --check-only
+2shark import --check-only --branch master --commit-sha <sha>
 
 # Импортировать все файлы без diff
-2shark import --force
-
-# Очистить базу данных перед импортом
-2shark import --clear
+2shark import --force --branch master --commit-sha <sha>
 
 # Инициализировать базу данных
 2shark init-db
@@ -68,6 +65,8 @@ await clearDatabase();
 2shark check-updates
 2shark update-articles
 ```
+
+Для revision-based production import ожидается `branch=master`; флаг `--clear` для такого сценария запрещён.
 
 ## Разработка
 

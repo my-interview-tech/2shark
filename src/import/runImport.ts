@@ -1,6 +1,7 @@
 import { clearDatabase } from '../database';
 import { loadYAMLContent, parseDatabase } from '../docScanner';
 import { filterChangedFiles } from '../helpers';
+import { readRevisionDocuments } from './git-source';
 import { saveDocuments } from '../saveDocuments';
 import { ScanOptions, SpecialtyMapping, TechnologyMapping, TRunImportOptions, TRunImportResult } from '../types';
 
@@ -14,7 +15,16 @@ function assertConfigLoaded(config: Record<string, unknown>, configPath: string)
 }
 
 export async function runImport(options: TRunImportOptions): Promise<TRunImportResult> {
-  const { docsPath, configDir, shouldCheckOnly = false, shouldForce = false, shouldClearBeforeImport = false } = options;
+  const {
+    docsPath,
+    configDir,
+    repoPath,
+    branch,
+    commitSha,
+    shouldCheckOnly = false,
+    shouldForce = false,
+    shouldClearBeforeImport = false,
+  } = options;
 
   const scanOptions: ScanOptions = {
     docsPath,
@@ -28,7 +38,26 @@ export async function runImport(options: TRunImportOptions): Promise<TRunImportR
   const specialtyMapping = loadYAMLContent<SpecialtyMapping>(scanOptions.configPath.specialtiesPath);
   assertConfigLoaded(technologyMapping, scanOptions.configPath.technologyPath);
   assertConfigLoaded(specialtyMapping, scanOptions.configPath.specialtiesPath);
-  const documents = await parseDatabase(scanOptions);
+  const shouldReadRevision = Boolean(branch && commitSha);
+
+  if ((branch && !commitSha) || (!branch && commitSha)) {
+    throw new Error('Параметры branch и commitSha должны передаваться вместе');
+  }
+
+  if (shouldReadRevision && shouldClearBeforeImport) {
+    throw new Error('Destructive clear запрещен для production revision import');
+  }
+
+  const documents = shouldReadRevision
+    ? readRevisionDocuments({
+        repoPath: repoPath || process.cwd(),
+        docsPath,
+        branch: branch as string,
+        commitSha: commitSha as string,
+        technologyMapping,
+        specialtyMapping,
+      })
+    : await parseDatabase(scanOptions);
   const changedDocuments = shouldForce ? documents : await filterChangedFiles(documents);
   const skipped = documents.length - changedDocuments.length;
 

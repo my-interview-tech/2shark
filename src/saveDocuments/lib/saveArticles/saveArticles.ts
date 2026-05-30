@@ -48,52 +48,53 @@ export async function saveArticles(
         }
 
         const mapping = technologyMapping?.[doc.technology];
-        const specialties = mapping ? toStringArray(mapping.specialty) : [doc.specialty];
+        const mappedSpecialty = mapping ? toStringArray(mapping.specialty)[0] : doc.specialty;
+        const specialty = mappedSpecialty || doc.specialty;
+        const specialtyId = specialtyIds.get(specialty);
 
-        // Сохраняем статью для каждой специальности
-        for (const specialty of specialties) {
-            const specialtyId = specialtyIds.get(specialty);
-
-            if (!specialtyId) {
-                console.warn(`Пропускаем статью ${doc.title} для specialty ${specialty}: не найдена specialty`);
-                continue;
-            }
-
-            const uniqueSlug = `${doc.id}-${toSlug(specialty)}`;
-
-            if (debug) console.log(`Сохраняем статью: ${doc.title} (${uniqueSlug})`);
-
-            const articleResult = await client.query(SCHEMA.INSERT_ARTICLE_QUERY, [
-                doc.uid,
-                doc.title,
-                uniqueSlug,
-                doc.content,
-                specialtyId,
-                technologyId,
-                doc.access,
-                doc.tools,
-                doc.order,
-                doc.priority,
-                doc.description,
-                doc.file_hash,
-                doc.created_at,
-                doc.updated_at,
-            ]);
-
-            const articleId = articleResult.rows[0].id;
-
-            // Сохраняем связанные теги и ссылки
-            await saveArticleRelations({
-                client,
-                articleId,
-                doc,
-                queries: {
-                    insertTag: SCHEMA.INSERT_TAG_QUERY,
-                    insertArticleTag: SCHEMA.INSERT_ARTICLE_TAG_QUERY,
-                    insertArticleLink: SCHEMA.INSERT_ARTICLE_LINK_QUERY,
-                },
-                debug,
-            });
+        if (!specialtyId) {
+            console.warn(`Пропускаем статью ${doc.title} для specialty ${specialty}: не найдена specialty`);
+            continue;
         }
+
+        const uniqueSlug = `${doc.uid}-${toSlug(specialty)}`;
+
+        if (debug) console.log(`Сохраняем статью: ${doc.title} (${uniqueSlug})`);
+
+        const articleResult = await client.query(SCHEMA.INSERT_ARTICLE_QUERY, [
+            doc.uid,
+            doc.title,
+            uniqueSlug,
+            doc.content,
+            specialtyId,
+            technologyId,
+            doc.access,
+            doc.tools,
+            doc.order,
+            doc.priority,
+            doc.description,
+            doc.file_hash,
+            doc.created_at,
+            doc.updated_at,
+            doc.sourceBranch || null,
+            doc.sourceCommitSha || null,
+            doc.sourcePath || null,
+            doc.importedAt || new Date(),
+        ]);
+
+        const articleId = articleResult.rows[0].id;
+
+        // Сохраняем связанные теги и ссылки
+        await saveArticleRelations({
+            client,
+            articleId,
+            doc,
+            queries: {
+                insertTag: SCHEMA.INSERT_TAG_QUERY,
+                insertArticleTag: SCHEMA.INSERT_ARTICLE_TAG_QUERY,
+                insertArticleLink: SCHEMA.INSERT_ARTICLE_LINK_QUERY,
+            },
+            debug,
+        });
     }
 }

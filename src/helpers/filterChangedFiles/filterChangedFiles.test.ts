@@ -26,6 +26,7 @@ const mockDocuments: DocItem[] = [
     file_hash: 'abc123hash1',
     created_at: new Date('2024-01-01'),
     updated_at: new Date('2024-01-15'),
+    sourceCommitSha: 'sha-1',
   },
   {
     id: 'typescript-basics',
@@ -44,6 +45,7 @@ const mockDocuments: DocItem[] = [
     file_hash: 'def456hash2',
     created_at: new Date('2024-01-01'),
     updated_at: new Date('2024-01-15'),
+    sourceCommitSha: 'sha-2',
   },
   {
     id: 'nodejs-api',
@@ -62,6 +64,7 @@ const mockDocuments: DocItem[] = [
     file_hash: 'ghi789hash3',
     created_at: new Date('2024-01-01'),
     updated_at: new Date('2024-01-15'),
+    sourceCommitSha: 'sha-3',
   },
 ];
 
@@ -108,9 +111,9 @@ describe('Unit/helpers/function/filterChangedFiles', () => {
 
     it('Должна вернуть только измененные документы', async () => {
       const existingHashes = new Map([
-        ['react-hooks-hash1', 'oldhash1'], // измененный хеш
-        ['typescript-basics-hash2', 'def456hash2'], // неизмененный хеш
-        ['nodejs-api-hash3', 'oldhash3'], // измененный хеш
+        ['react-hooks-hash1', 'oldhash1:::sha-1'], // измененный хеш
+        ['typescript-basics-hash2', 'def456hash2:::sha-2'], // неизмененный хеш
+        ['nodejs-api-hash3', 'oldhash3:::sha-3'], // измененный хеш
       ]);
       mockGetFileHashes.mockResolvedValue(existingHashes);
 
@@ -125,9 +128,9 @@ describe('Unit/helpers/function/filterChangedFiles', () => {
 
     it('Должна вернуть пустой массив когда все документы неизменены', async () => {
       const existingHashes = new Map([
-        ['react-hooks-hash1', 'abc123hash1'],
-        ['typescript-basics-hash2', 'def456hash2'],
-        ['nodejs-api-hash3', 'ghi789hash3'],
+        ['react-hooks-hash1', 'abc123hash1:::sha-1'],
+        ['typescript-basics-hash2', 'def456hash2:::sha-2'],
+        ['nodejs-api-hash3', 'ghi789hash3:::sha-3'],
       ]);
       mockGetFileHashes.mockResolvedValue(existingHashes);
 
@@ -139,8 +142,8 @@ describe('Unit/helpers/function/filterChangedFiles', () => {
 
     it('Должна корректно обрабатывать частичные совпадения slug', async () => {
       const existingHashes = new Map([
-        ['react-hooks-some-suffix', 'abc123hash1'],
-        ['typescript-basics-other-suffix', 'oldhash'],
+        ['react-hooks-some-suffix', 'abc123hash1:::sha-1'],
+        ['typescript-basics-other-suffix', 'oldhash:::sha-2'],
       ]);
       mockGetFileHashes.mockResolvedValue(existingHashes);
 
@@ -169,8 +172,8 @@ describe('Unit/helpers/function/filterChangedFiles', () => {
         { ...mockDocuments[1], file_hash: 'samehash' },
       ];
       const existingHashes = new Map([
-        ['react-hooks-hash1', 'samehash'],
-        ['typescript-basics-hash2', 'differenthash'],
+        ['react-hooks-hash1', 'samehash:::sha-1'],
+        ['typescript-basics-hash2', 'differenthash:::sha-2'],
       ]);
       mockGetFileHashes.mockResolvedValue(existingHashes);
 
@@ -183,7 +186,7 @@ describe('Unit/helpers/function/filterChangedFiles', () => {
     it('Должна обрабатывать документы с очень длинными хешами', async () => {
       const longHash = 'a'.repeat(1000);
       const documentsWithLongHash = [{ ...mockDocuments[0], file_hash: longHash }];
-      const existingHashes = new Map([['react-hooks-hash1', 'differenthash']]);
+      const existingHashes = new Map([['react-hooks-hash1', 'differenthash:::sha-1']]);
       mockGetFileHashes.mockResolvedValue(existingHashes);
 
       const result = await filterChangedFiles(documentsWithLongHash);
