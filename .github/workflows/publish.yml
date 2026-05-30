@@ -66,6 +66,8 @@ jobs:
           echo "Current version: $VERSION"
 
       - name: Commit and push changes
+        env:
+          HUSKY: 0
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
@@ -79,12 +81,13 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.SHARP_NPM_PUBLISH_TOKEN }}
 
       - name: Create Git tag and release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HUSKY: 0
         run: |
           VERSION=$(node -p "require('./package.json').version")
           git tag "v$VERSION"
           git push origin "v$VERSION"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
