@@ -79,6 +79,37 @@ describe('Unit/import/function/readRevisionDocuments', () => {
       expect(processMarkdownContent).toHaveBeenCalledTimes(2);
       expect(execFileSync).toHaveBeenCalled();
     });
+
+    it('Должна вернуть пустой список если markdown-файлов нет', () => {
+      (execFileSync as jest.MockedFunction<typeof execFileSync>).mockImplementation((_, args) => {
+        const gitArgs = args as string[];
+
+        if (gitArgs.includes('rev-parse')) {
+          return 'abc123';
+        }
+
+        if (gitArgs.includes('merge-base')) {
+          return '';
+        }
+
+        if (gitArgs.includes('ls-tree')) {
+          return '';
+        }
+
+        return '';
+      });
+
+      const result = readRevisionDocuments({
+        repoPath: '/tmp/repo',
+        docsPath: 'docs',
+        branch: 'master',
+        commitSha: 'abc123',
+        technologyMapping: { React: { specialty: 'Frontend', priority: 1, description: 'React' } },
+        specialtyMapping: { Frontend: { priority: 1, description: 'Frontend' } },
+      });
+
+      expect(result).toEqual([]);
+    });
   });
 
   describe(DESCRIBE_CASES.ERROR, () => {
@@ -103,6 +134,46 @@ describe('Unit/import/function/readRevisionDocuments', () => {
           specialtyMapping: { Frontend: { priority: 1, description: 'Frontend' } },
         }),
       ).toThrow('Commit SHA не найден');
+    });
+
+    it('Должна вернуть ошибку если commit не принадлежит ветке', () => {
+      (execFileSync as jest.MockedFunction<typeof execFileSync>).mockImplementation((_, args) => {
+        const gitArgs = args as string[];
+
+        if (gitArgs.includes('rev-parse')) {
+          return 'abc123';
+        }
+
+        if (gitArgs.includes('merge-base')) {
+          throw new Error('mismatch');
+        }
+
+        return '';
+      });
+
+      expect(() =>
+        readRevisionDocuments({
+          repoPath: '/tmp/repo',
+          docsPath: 'docs',
+          branch: 'master',
+          commitSha: 'abc123',
+          technologyMapping: { React: { specialty: 'Frontend', priority: 1, description: 'React' } },
+          specialtyMapping: { Frontend: { priority: 1, description: 'Frontend' } },
+        }),
+      ).toThrow('не принадлежит ветке');
+    });
+
+    it('Должна вернуть ошибку если docsPath вне репозитория', () => {
+      expect(() =>
+        readRevisionDocuments({
+          repoPath: '/tmp/repo',
+          docsPath: '/external/docs',
+          branch: 'master',
+          commitSha: 'abc123',
+          technologyMapping: { React: { specialty: 'Frontend', priority: 1, description: 'React' } },
+          specialtyMapping: { Frontend: { priority: 1, description: 'Frontend' } },
+        }),
+      ).toThrow('вне репозитория');
     });
   });
 });

@@ -68,6 +68,22 @@ await clearDatabase();
 
 Для revision-based production import ожидается `branch=master`; флаг `--clear` для такого сценария запрещён.
 
+### Import observability
+
+Каждый запуск `2shark import` теперь фиксируется в таблице `import_jobs` со статусами lifecycle:
+
+- `pending`
+- `running`
+- `success`
+- `failed`
+
+В `import_jobs` сохраняются `branch`, `commit_sha`, `started_at`, `finished_at`, а также `result` или `error`.
+Это позволяет быстро определить:
+
+- последний успешный импорт;
+- последнюю ошибку импорта и ревизию, на которой она произошла;
+- summary по обработанным документам (`total/created/updated/skipped`).
+
 ## Разработка
 
 ### Сборка

@@ -31,6 +31,14 @@ const GET_FILE_HASHES_QUERY = `
       WHERE file_hash IS NOT NULL
     `;
 
+const SELECT_LAST_SUCCESS_IMPORT_JOB_QUERY = `
+      SELECT id, branch, commit_sha, status, started_at, finished_at, result, error
+      FROM import_jobs
+      WHERE status = 'success'
+      ORDER BY started_at DESC
+      LIMIT 1
+    `;
+
 // ============================================================================
 // CREATE TABLE QUERIES
 // ============================================================================
@@ -146,6 +154,21 @@ const CREATE_ARTICLE_LINKS_TABLE_QUERY = `
 )
 `;
 
+const CREATE_IMPORT_JOBS_TABLE_QUERY = `
+    CREATE TABLE IF NOT EXISTS import_jobs (
+      id BIGSERIAL PRIMARY KEY,
+      branch VARCHAR(255) NOT NULL,
+      commit_sha VARCHAR(255) NOT NULL,
+      status VARCHAR(32) NOT NULL,
+      started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      finished_at TIMESTAMP NULL,
+      result JSONB NULL,
+      error JSONB NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+
 // ============================================================================
 // DELETE DATA QUERIES
 // ============================================================================
@@ -191,6 +214,7 @@ const DELETE_TECHNOLOGIES_DATA_QUERY = `DELETE FROM technologies`;
  * Используется при очистке базы данных
  */
 const DELETE_SPECIALTY_TECHNOLOGY_DATA_QUERY = `DELETE FROM specialty_technology`;
+const DELETE_IMPORT_JOBS_DATA_QUERY = `DELETE FROM import_jobs`;
 
 // ============================================================================
 // DROP TABLE QUERIES
@@ -324,10 +348,34 @@ const INSERT_TAG_QUERY = `INSERT INTO tags (name)
          ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name 
          RETURNING id`;
 
+const INSERT_IMPORT_JOB_QUERY = `INSERT INTO import_jobs (branch, commit_sha, status, started_at)
+         VALUES ($1, $2, 'pending', CURRENT_TIMESTAMP)
+         RETURNING id`;
+
+const UPDATE_IMPORT_JOB_RUNNING_QUERY = `UPDATE import_jobs
+         SET status = 'running', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`;
+
+const UPDATE_IMPORT_JOB_SUCCESS_QUERY = `UPDATE import_jobs
+         SET status = 'success',
+         finished_at = CURRENT_TIMESTAMP,
+         result = $2::jsonb,
+         error = NULL,
+         updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`;
+
+const UPDATE_IMPORT_JOB_FAILED_QUERY = `UPDATE import_jobs
+         SET status = 'failed',
+         finished_at = CURRENT_TIMESTAMP,
+         error = $2::jsonb,
+         updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`;
+
 export const SCHEMA = {
   // SELECT queries
   CHECK_TABLE_EXISTS_QUERY,
   GET_FILE_HASHES_QUERY,
+  SELECT_LAST_SUCCESS_IMPORT_JOB_QUERY,
 
   // CREATE TABLE queries
   CREATE_SPECIALTIES_TABLE_QUERY,
@@ -337,6 +385,7 @@ export const SCHEMA = {
   CREATE_TAGS_TABLE_QUERY,
   CREATE_ARTICLE_TAGS_TABLE_QUERY,
   CREATE_ARTICLE_LINKS_TABLE_QUERY,
+  CREATE_IMPORT_JOBS_TABLE_QUERY,
 
   // DELETE DATA queries
   DELETE_ARTICLE_TAGS_DATA_QUERY,
@@ -346,6 +395,7 @@ export const SCHEMA = {
   DELETE_SPECIALTIES_DATA_QUERY,
   DELETE_TECHNOLOGIES_DATA_QUERY,
   DELETE_SPECIALTY_TECHNOLOGY_DATA_QUERY,
+  DELETE_IMPORT_JOBS_DATA_QUERY,
 
   // DROP TABLE queries
   DROP_ARTICLES_TABLE_QUERY,
@@ -361,4 +411,8 @@ export const SCHEMA = {
   INSERT_ARTICLE_TAG_QUERY,
   INSERT_ARTICLE_LINK_QUERY,
   INSERT_TAG_QUERY,
+  INSERT_IMPORT_JOB_QUERY,
+  UPDATE_IMPORT_JOB_RUNNING_QUERY,
+  UPDATE_IMPORT_JOB_SUCCESS_QUERY,
+  UPDATE_IMPORT_JOB_FAILED_QUERY,
 } as const;
