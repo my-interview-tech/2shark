@@ -71,16 +71,10 @@ jobs:
           git commit -m "chore: version bump and changelog update" || exit 0
           git push
 
-      - name: Setup NPM auth
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.SHARP_NPM_PUBLISH_TOKEN }}" > ~/.npmrc
-          echo "registry=https://registry.npmjs.org/" >> ~/.npmrc
-
-
       - name: Publish to NPM
-        run: npm publish --access public
+        run: npm publish --access public --registry https://registry.npmjs.org/
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.SHARP_NPM_PUBLISH_TOKEN }}
 
       - name: Create Git tag and release
         run: |
