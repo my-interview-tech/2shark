@@ -1,5 +1,11 @@
 # @my-interview-tech/2shark
 
+## 3.0.1
+
+### Patch Changes
+
+- 9dc74b0: - Исправлен publish pipeline: нормализованы metadata пакета, генерация declaration-файлов больше не включает тесты, а npm publish использует стандартный auth token environment.
+
 ## 3.0.0
 
 ### Major Changes
