@@ -51,7 +51,7 @@ async function build() {
 
     const { execSync } = require('child_process');
     try {
-      execSync('npx tsc --emitDeclarationOnly --declaration --outDir dist', { stdio: 'inherit' });
+      execSync('npm run build:types', { stdio: 'inherit' });
       console.log('✓ Типы сгенерированы');
     } catch (error) {
       console.log('⚠️ Ошибка генерации типов:', error.message);
