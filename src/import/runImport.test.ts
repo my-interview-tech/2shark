@@ -3,6 +3,7 @@ import { clearDatabase } from '../database';
 import { loadYAMLContent, parseDatabase } from '../docScanner';
 import { filterChangedFiles } from '../helpers';
 import { saveDocuments } from '../saveDocuments';
+import { readRevisionDocuments } from './git-source';
 import { DESCRIBE_CASES } from '../helpers/test';
 import { DocItem } from '../types';
 
@@ -21,6 +22,10 @@ jest.mock('../helpers', () => ({
 
 jest.mock('../saveDocuments', () => ({
   saveDocuments: jest.fn(),
+}));
+
+jest.mock('./git-source', () => ({
+  readRevisionDocuments: jest.fn(),
 }));
 
 const mockDocuments: DocItem[] = [
@@ -76,6 +81,7 @@ describe('Unit/import/function/runImport', () => {
     });
     (parseDatabase as jest.MockedFunction<typeof parseDatabase>).mockResolvedValue(mockDocuments);
     (filterChangedFiles as jest.MockedFunction<typeof filterChangedFiles>).mockResolvedValue([mockDocuments[0]]);
+    (readRevisionDocuments as jest.MockedFunction<typeof readRevisionDocuments>).mockReturnValue(mockDocuments);
   });
 
   describe(DESCRIBE_CASES.SUCCESS, () => {
@@ -112,6 +118,25 @@ describe('Unit/import/function/runImport', () => {
         skipped: 1,
         saved: 1,
       });
+    });
+
+    it('Должна читать документы из git revision при переданных branch и commitSha', async () => {
+      await runImport({
+        docsPath: './docs',
+        configDir: './config',
+        repoPath: '/tmp/repo',
+        branch: 'master',
+        commitSha: 'abc123',
+      });
+
+      expect(readRevisionDocuments).toHaveBeenCalledWith(
+        expect.objectContaining({
+          repoPath: '/tmp/repo',
+          branch: 'master',
+          commitSha: 'abc123',
+        }),
+      );
+      expect(parseDatabase).not.toHaveBeenCalled();
     });
   });
 
@@ -171,6 +196,28 @@ describe('Unit/import/function/runImport', () => {
           configDir: './config',
         }),
       ).rejects.toThrow('Не удалось загрузить конфигурацию');
+    });
+
+    it('Должна вернуть ошибку если передан только branch без commitSha', async () => {
+      await expect(
+        runImport({
+          docsPath: './docs',
+          configDir: './config',
+          branch: 'master',
+        }),
+      ).rejects.toThrow('branch и commitSha');
+    });
+
+    it('Должна вернуть ошибку при clear в revision import', async () => {
+      await expect(
+        runImport({
+          docsPath: './docs',
+          configDir: './config',
+          branch: 'master',
+          commitSha: 'abc123',
+          shouldClearBeforeImport: true,
+        }),
+      ).rejects.toThrow('Destructive clear запрещен');
     });
   });
 });

@@ -7,7 +7,7 @@ import { getCleanPathParts } from '../getCleanPathParts';
 import { extractTechnology } from '../extractTechnology';
 import { normalizeSpecialty } from '../normalizeSpecialty';
 import { DocItem } from '../../../types';
-import { TProcessMarkdownFileParams } from './types';
+import { TProcessMarkdownContentParams, TProcessMarkdownFileParams } from './types';
 
 /**
  * Обрабатывает отдельный Markdown файл и извлекает метаданные
@@ -34,6 +34,27 @@ export async function processMarkdownFile({
 }: TProcessMarkdownFileParams): Promise<DocItem | DocItem[] | null> {
   try {
     const content = await fs.readFile(filePath, 'utf-8');
+    return processMarkdownContent({
+      filePath,
+      content,
+      technologyMapping,
+      specialtyMapping,
+    });
+  } catch (error) {
+    console.error(`Ошибка обработки файла ${filePath}:`, error);
+
+    return null;
+  }
+}
+
+export function processMarkdownContent({
+  filePath,
+  content,
+  technologyMapping,
+  specialtyMapping,
+  revisionMetadata,
+}: TProcessMarkdownContentParams): DocItem | null {
+  try {
     const { data, content: markdownContent } = matter(content);
 
     if (data?.draft === true) {
@@ -131,7 +152,7 @@ export async function processMarkdownFile({
 
     const tags = Array.isArray(data?.tags) ? data.tags : [];
 
-    return {
+    const result: DocItem = {
       id: uid,
       uid,
       title,
@@ -149,6 +170,15 @@ export async function processMarkdownFile({
       created_at: createdAt,
       updated_at: updatedAt,
     };
+
+    if (revisionMetadata) {
+      result.sourceBranch = revisionMetadata.sourceBranch;
+      result.sourceCommitSha = revisionMetadata.sourceCommitSha;
+      result.sourcePath = revisionMetadata.sourcePath;
+      result.importedAt = revisionMetadata.importedAt;
+    }
+
+    return result;
   } catch (error) {
     console.error(`Ошибка обработки файла ${filePath}:`, error);
 

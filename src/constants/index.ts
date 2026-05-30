@@ -37,6 +37,9 @@ export const flagsConfig = '-c, --config <config>';
 export const flagsClear = '--clear';
 export const flagsCheckOnly = '--check-only';
 export const flagsForce = '-f, --force';
+export const flagsRepoPath = '--repo-path <path>';
+export const flagsBranch = '--branch <name>';
+export const flagsCommitSha = '--commit-sha <sha>';
 
 // ============================================================================
 // Константы для путей

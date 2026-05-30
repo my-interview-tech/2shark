@@ -26,7 +26,7 @@ const CHECK_TABLE_EXISTS_QUERY = `
  * Используется для отслеживания изменений в документации
  */
 const GET_FILE_HASHES_QUERY = `
-      SELECT uid, slug, file_hash 
+      SELECT uid, slug, file_hash, source_commit_sha
       FROM articles 
       WHERE file_hash IS NOT NULL
     `;
@@ -98,8 +98,12 @@ const CREATE_ARTICLES_TABLE_QUERY = `
       file_hash VARCHAR(64),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      source_branch VARCHAR(255),
+      source_commit_sha VARCHAR(255),
+      source_path TEXT,
+      imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(slug),
-      UNIQUE(uid, specialty_id)
+      UNIQUE(uid)
     )
   `;
 
@@ -265,9 +269,9 @@ const UPSERT_SPECIALTY_TECHNOLOGY_QUERY = `INSERT INTO specialty_technology (spe
  * @param {string} fileHash - Хеш файла для отслеживания изменений
  * @returns {number} - ID созданной статьи
  */
-const INSERT_ARTICLE_QUERY = `INSERT INTO articles (uid, title, slug, content, specialty_id, technology_id, access, tools, article_order, priority, description, file_hash, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-         ON CONFLICT (slug) DO UPDATE SET
+const INSERT_ARTICLE_QUERY = `INSERT INTO articles (uid, title, slug, content, specialty_id, technology_id, access, tools, article_order, priority, description, file_hash, created_at, updated_at, source_branch, source_commit_sha, source_path, imported_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+         ON CONFLICT (uid) DO UPDATE SET
          uid = EXCLUDED.uid,
          title = EXCLUDED.title,
          content = EXCLUDED.content,
@@ -280,7 +284,11 @@ const INSERT_ARTICLE_QUERY = `INSERT INTO articles (uid, title, slug, content, s
          description = EXCLUDED.description,
          file_hash = EXCLUDED.file_hash,
          created_at = EXCLUDED.created_at,
-         updated_at = EXCLUDED.updated_at
+         updated_at = EXCLUDED.updated_at,
+         source_branch = EXCLUDED.source_branch,
+         source_commit_sha = EXCLUDED.source_commit_sha,
+         source_path = EXCLUDED.source_path,
+         imported_at = EXCLUDED.imported_at
          RETURNING id`;
 
 /**

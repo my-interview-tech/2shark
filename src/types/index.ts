@@ -124,6 +124,14 @@ export type DocItem = {
   created_at: Date;
   /** Дата последнего обновления документа */
   updated_at: Date;
+  /** Git branch источника */
+  sourceBranch?: string;
+  /** Git commit SHA источника */
+  sourceCommitSha?: string;
+  /** Исходный путь markdown-файла в репозитории */
+  sourcePath?: string;
+  /** Время импорта документа */
+  importedAt?: Date;
 };
 
 /**
@@ -231,6 +239,9 @@ export type UpdateArticlesOptions = BaseOptions & {
 export type TRunImportOptions = {
   docsPath: string;
   configDir: string;
+  repoPath?: string;
+  branch?: string;
+  commitSha?: string;
   shouldClearBeforeImport?: boolean;
   shouldCheckOnly?: boolean;
   shouldForce?: boolean;

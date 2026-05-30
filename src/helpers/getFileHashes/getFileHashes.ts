@@ -13,7 +13,7 @@ import { SCHEMA } from '../../schema';
  * - для отладочной статистики изменения документов
  *
  * @param config - Конфигурация подключения к PostgreSQL (опционально)
- * @returns Promise с Map где ключ - uid/slug файла, значение - хеш
+ * @returns Promise с Map где ключ - uid/slug файла, значение - `file_hash:::source_commit_sha`
  *
  * @example
  * ```typescript
@@ -33,7 +33,8 @@ export async function getFileHashes(config?: DatabaseConfig): Promise<Map<string
 
     for (const row of result.rows) {
       const key = row.uid || row.slug;
-      hashes.set(key, row.file_hash);
+      const sourceCommitSha = typeof row.source_commit_sha === 'string' ? row.source_commit_sha : '';
+      hashes.set(key, `${row.file_hash}:::${sourceCommitSha}`);
     }
 
     return hashes;
