@@ -242,6 +242,7 @@ export type TRunImportOptions = {
   repoPath?: string;
   branch?: string;
   commitSha?: string;
+  isProductionSync?: boolean;
   shouldClearBeforeImport?: boolean;
   shouldCheckOnly?: boolean;
   shouldForce?: boolean;

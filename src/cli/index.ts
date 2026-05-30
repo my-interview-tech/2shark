@@ -25,6 +25,7 @@ import {
   flagsRepoPath,
   flagsBranch,
   flagsCommitSha,
+  flagsProductionSync,
 } from '../constants';
 import packageJson from '../../package.json';
 
@@ -35,6 +36,7 @@ type TImportCliOptions = {
   repoPath?: string;
   branch?: string;
   commitSha?: string;
+  productionSync?: boolean;
   clear?: boolean;
   checkOnly?: boolean;
   force?: boolean;
@@ -51,6 +53,7 @@ function toImportOptions(options: TImportCliOptions): TRunImportOptions {
     repoPath: options.repoPath,
     branch: options.branch,
     commitSha: options.commitSha,
+    isProductionSync: Boolean(options.productionSync),
     shouldCheckOnly: Boolean(options.checkOnly),
     shouldForce: Boolean(options.force),
     shouldClearBeforeImport: Boolean(options.clear),
@@ -179,6 +182,7 @@ async function main() {
     .option(flagsRepoPath, 'Путь к git-репозиторию с контентом', process.cwd())
     .requiredOption(flagsBranch, 'Git branch для import')
     .requiredOption(flagsCommitSha, 'Git commit SHA для import')
+    .option(flagsProductionSync, 'Запуск в production sync режиме (только branch=main)')
     .option(flagsClear, 'Очистить базу данных перед импортом')
     .option(flagsCheckOnly, 'Проверить обновления без сохранения')
     .option(flagsForce, 'Сохранить все документы без diff')

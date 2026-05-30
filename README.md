@@ -43,16 +43,16 @@ await clearDatabase();
 
 ```bash
 # Production import entrypoint
-2shark import --branch master --commit-sha <sha>
+2shark import --branch main --commit-sha <sha> --production-sync
 
 # Сканировать с кастомными путями
-2shark import -p ./docs -c ./config --repo-path ../my-interview.tech --branch master --commit-sha <sha>
+2shark import -p ./docs -c ./config --repo-path ../my-interview.tech --branch main --commit-sha <sha> --production-sync
 
 # Проверить изменения без записи
-2shark import --check-only --branch master --commit-sha <sha>
+2shark import --check-only --branch main --commit-sha <sha> --production-sync
 
 # Импортировать все файлы без diff
-2shark import --force --branch master --commit-sha <sha>
+2shark import --force --branch main --commit-sha <sha> --production-sync
 
 # Инициализировать базу данных
 2shark init-db
@@ -66,7 +66,7 @@ await clearDatabase();
 2shark update-articles
 ```
 
-Для revision-based production import ожидается `branch=master`; флаг `--clear` для такого сценария запрещён.
+Для production sync automation ожидается `branch=main`; флаг `--clear` для такого сценария запрещён.
 
 ### Import observability
 
@@ -83,6 +83,61 @@ await clearDatabase();
 - последний успешный импорт;
 - последнюю ошибку импорта и ревизию, на которой она произошла;
 - summary по обработанным документам (`total/created/updated/skipped`).
+
+### Production sync from my-interview.tech
+
+Канонический сценарий `db-0005`: workflow запускается в репозитории `my-interview.tech` на `push` в `main`.
+
+```yaml
+name: production-sync
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install 2shark
+        run: npm install -g 2shark
+
+      - name: Run production sync
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          2shark import \
+            --path ./docs \
+            --config ./scripts/frontmatter/config \
+            --repo-path . \
+            --branch main \
+            --commit-sha ${{ github.sha }} \
+            --production-sync
+```
+
+Требования к интеграции:
+
+- передавать фактический `${{ github.sha }}` опубликованной ревизии;
+- хранить `DATABASE_URL` (или `DB_*`) только в secrets;
+- не печатать secrets в logs;
+- при failed import workflow должен завершаться с ошибкой (exit code != 0).
+
+Smoke-checklist после интеграции:
+
+- merge/push в `main` запускает workflow;
+- запуск из feature branch не пишет в production DB;
+- успешный запуск создаёт `import_job` со статусом `success`;
+- ошибочный запуск создаёт `import_job` со статусом `failed`;
+- rerun того же `commitSha` не создаёт дубли в read model.
 
 ## Разработка
 

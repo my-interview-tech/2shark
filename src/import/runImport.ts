@@ -48,12 +48,17 @@ export async function runImport(options: TRunImportOptions): Promise<TRunImportR
     repoPath,
     branch,
     commitSha,
+    isProductionSync = false,
     shouldCheckOnly = false,
     shouldForce = false,
     shouldClearBeforeImport = false,
   } = options;
   if (!branch || !commitSha) {
     throw new Error('Параметры branch и commitSha обязательны для import job observability');
+  }
+
+  if (isProductionSync && branch !== 'main') {
+    throw new Error('Production sync разрешен только для branch=main');
   }
 
   const jobsPool = new Pool(DB_CONFIG);

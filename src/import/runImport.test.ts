@@ -115,8 +115,9 @@ describe('Unit/import/function/runImport', () => {
         docsPath: './docs',
         configDir: './config',
         repoPath: '/tmp/repo',
-        branch: 'master',
+        branch: 'main',
         commitSha: 'abc123',
+        isProductionSync: true,
         shouldCheckOnly: true,
       });
 
@@ -135,8 +136,9 @@ describe('Unit/import/function/runImport', () => {
         docsPath: './docs',
         configDir: './config',
         repoPath: '/tmp/repo',
-        branch: 'master',
+        branch: 'main',
         commitSha: 'abc123',
+        isProductionSync: true,
       });
 
       expect(saveDocuments).toHaveBeenCalledWith(
@@ -151,7 +153,7 @@ describe('Unit/import/function/runImport', () => {
         saved: 1,
       });
       expect(createImportJob).toHaveBeenCalledWith(expect.any(Object), {
-        branch: 'master',
+        branch: 'main',
         commitSha: 'abc123',
       });
       expect(markImportJobRunning).toHaveBeenCalledWith(expect.any(Object), '1');
@@ -163,14 +165,15 @@ describe('Unit/import/function/runImport', () => {
         docsPath: './docs',
         configDir: './config',
         repoPath: '/tmp/repo',
-        branch: 'master',
+        branch: 'main',
         commitSha: 'abc123',
+        isProductionSync: true,
       });
 
       expect(readRevisionDocuments).toHaveBeenCalledWith(
         expect.objectContaining({
           repoPath: '/tmp/repo',
-          branch: 'master',
+          branch: 'main',
           commitSha: 'abc123',
         }),
       );
@@ -184,8 +187,9 @@ describe('Unit/import/function/runImport', () => {
         docsPath: './docs',
         configDir: './config',
         repoPath: '/tmp/repo',
-        branch: 'master',
+        branch: 'main',
         commitSha: 'abc123',
+        isProductionSync: true,
         shouldForce: true,
       });
 
@@ -205,8 +209,9 @@ describe('Unit/import/function/runImport', () => {
         docsPath: './docs',
         configDir: './config',
         repoPath: '/tmp/repo',
-        branch: 'master',
+        branch: 'main',
         commitSha: 'abc123',
+        isProductionSync: true,
       });
 
       expect(saveDocuments).not.toHaveBeenCalled();
@@ -229,8 +234,9 @@ describe('Unit/import/function/runImport', () => {
           docsPath: './docs',
           configDir: './config',
           repoPath: '/tmp/repo',
-          branch: 'master',
+          branch: 'main',
           commitSha: 'abc123',
+          isProductionSync: true,
         }),
       ).rejects.toThrow('Не удалось загрузить конфигурацию');
       expect(markImportJobFailed).toHaveBeenCalled();
@@ -241,6 +247,7 @@ describe('Unit/import/function/runImport', () => {
         runImport({
           docsPath: './docs',
           configDir: './config',
+          isProductionSync: true,
         }),
       ).rejects.toThrow('обязательны');
     });
@@ -250,12 +257,25 @@ describe('Unit/import/function/runImport', () => {
         runImport({
           docsPath: './docs',
           configDir: './config',
-          branch: 'master',
+          branch: 'main',
           commitSha: 'abc123',
+          isProductionSync: true,
           shouldClearBeforeImport: true,
         }),
       ).rejects.toThrow('Destructive clear запрещен');
       expect(clearDatabase).not.toHaveBeenCalled();
+    });
+
+    it('Должна вернуть ошибку в production sync режиме для не-main ветки', async () => {
+      await expect(
+        runImport({
+          docsPath: './docs',
+          configDir: './config',
+          branch: 'master',
+          commitSha: 'abc123',
+          isProductionSync: true,
+        }),
+      ).rejects.toThrow('только для branch=main');
     });
 
     it('Должна пробрасывать исходную ошибку если сохранение failed job тоже упало', async () => {
@@ -271,8 +291,9 @@ describe('Unit/import/function/runImport', () => {
           docsPath: './docs',
           configDir: './config',
           repoPath: '/tmp/repo',
-          branch: 'master',
+          branch: 'main',
           commitSha: 'abc123',
+          isProductionSync: true,
         }),
       ).rejects.toThrow('source import error');
     });

@@ -40,6 +40,7 @@ export const flagsForce = '-f, --force';
 export const flagsRepoPath = '--repo-path <path>';
 export const flagsBranch = '--branch <name>';
 export const flagsCommitSha = '--commit-sha <sha>';
+export const flagsProductionSync = '--production-sync';
 
 // ============================================================================
 // Константы для путей
