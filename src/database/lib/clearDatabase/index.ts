@@ -1,1 +1,2 @@
-export { clearDatabase, clearDatabaseSchema } from './clearDatabase';
+export { clearDatabase } from './clearDatabase';
+export { clearDatabaseSchema } from './schema';

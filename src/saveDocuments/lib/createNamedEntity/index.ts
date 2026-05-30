@@ -1,0 +1,1 @@
+export { createNamedEntity, createSpecialty, createTechnology } from './createNamedEntity';

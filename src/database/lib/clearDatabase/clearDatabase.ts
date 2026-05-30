@@ -1,27 +1,7 @@
 import { Pool } from 'pg';
+import { clearDatabaseSchema } from './schema';
 import { DatabaseConfig } from '../../../types';
 import { DB_CONFIG } from '../../../config';
-
-/**
- * Очищает все данные из базы данных
- *
- * Удаляет все записи из всех таблиц в правильном порядке
- * для соблюдения внешних ключей.
- *
- * @param client - Клиент PostgreSQL
- * @returns Promise который разрешается после очистки
- *
- * @throws {Error} При ошибках подключения к базе данных
- */
-export async function clearDatabaseSchema(client: any): Promise<void> {
-  await client.query('DELETE FROM article_tags');
-  await client.query('DELETE FROM tags');
-  await client.query('DELETE FROM articles');
-  await client.query('DELETE FROM technologies');
-  await client.query('DELETE FROM specialties');
-
-  console.log('База данных очищена');
-}
 
 /**
  * Функция для очистки базы данных

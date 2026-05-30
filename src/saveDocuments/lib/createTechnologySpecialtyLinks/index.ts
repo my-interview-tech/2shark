@@ -1,0 +1,1 @@
+export { createTechnologySpecialtyLinks } from './createTechnologySpecialtyLinks';

@@ -1,0 +1,1 @@
+export { validateLinks } from './validateLinks';

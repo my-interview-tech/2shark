@@ -9,4 +9,4 @@ export const DB_CONFIG: DatabaseConfig = {
   database: process.env['DB_NAME'] || 'postgres',
   user: process.env['DB_USER'] || 'postgres',
   password: process.env['DB_PASSWORD'] || 'password',
-}; 
+};

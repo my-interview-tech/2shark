@@ -1,188 +1,268 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { parseDatabase } from '../parseDatabase';
 import { initDatabase, clearDatabase } from '../database';
-import { ScanOptions } from '../types';
+import { parseDatabase, filterChangedFiles, loadYAMLContent } from '../docScanner';
+import { saveDocuments } from '../saveDocuments';
+import { CheckUpdatesOptions, ParseDbOptions, ScanOptions, TechnologyMapping, UpdateArticlesOptions } from '../types';
+import {
+  COMMAND_DESCRIPTION,
+  COMMAND_NAME,
+  COMMAND_VERSION,
+  CONFIG_PATH,
+  DOCS_PATH,
+  INIT_DB,
+  PARSE_DB,
+  CHECK_UPDATES,
+  UPDATE_ARTICLES,
+  CLEAR_DB,
+  flagsCheckOnly,
+  flagsClear,
+  flagsConfig,
+  flagsForce,
+  flagsPath,
+} from '../constants';
+import packageJson from '../../package.json';
 
-interface ParseDbOptions {
-  path: string;
-  config: string;
-  clear: boolean;
+async function main() {
+  const program = new Command();
+
+  program
+    .name(packageJson?.name || COMMAND_NAME)
+    .description(packageJson?.description || COMMAND_DESCRIPTION)
+    .version(packageJson?.version || COMMAND_VERSION);
+
+  program.on('command:*', (command: string) => {
+    console.error(`Unknown command: ${command}`);
+    program.help();
+  });
+
+  program
+    .command(INIT_DB)
+    .description('Инициализировать базу данных')
+    .action(async () => {
+      try {
+        console.log('Инициализация базы данных...');
+        await initDatabase();
+        console.log('База данных инициализирована успешно');
+      } catch (error) {
+        console.error('Ошибка при инициализации базы данных:', error);
+        process.exit(1);
+      }
+    });
+
+  program
+    .command(CLEAR_DB)
+    .description('Очистить базу данных')
+    .action(async () => {
+      try {
+        console.log('Очистка базы данных...');
+        await clearDatabase();
+        console.log('База данных очищена успешно');
+      } catch (error) {
+        console.error('Ошибка при очистке базы данных:', error);
+        process.exit(1);
+      }
+    });
+
+  program
+    .command(PARSE_DB)
+    .description('Парсить документацию и сохранить в базу данных')
+    .option(flagsPath, 'Путь к документации', DOCS_PATH)
+    .option(flagsConfig, 'Путь к конфигурационным файлам', CONFIG_PATH)
+    .option(flagsClear, 'Очистить базу данных перед парсингом')
+    .option(flagsCheckOnly, 'Проверить обновления без сохранения')
+    .action(async (options: ParseDbOptions) => {
+      try {
+        const configDir = options.configDir || CONFIG_PATH;
+        const scanOptions: ScanOptions = {
+          docsPath: options.path,
+          configPath: {
+            technologyPath: `${configDir}/category-mapping.yaml`,
+            specialtiesPath: `${configDir}/specialties.yaml`,
+          },
+        };
+
+        if (options.checkOnly) {
+          console.log('Проверка обновлений...');
+
+          const documents = await parseDatabase(scanOptions);
+          const changedFiles = await filterChangedFiles(documents);
+
+          console.log(`Статистика:`);
+          console.log(`Всего файлов: ${documents.length}`);
+          console.log(`Требуют обновления: ${changedFiles.length}`);
+          console.log(`Неизмененных: ${documents.length - changedFiles.length}`);
+
+          if (changedFiles.length === 0) {
+            console.log('Нет файлов для обновления');
+          } else {
+            console.log(`Найдено ${changedFiles.length} файлов для обновления`);
+          }
+
+          return;
+        }
+
+        console.log('Парсинг документации...');
+
+        if (options.clear) {
+          console.log('Очистка базы данных...');
+
+          await clearDatabase();
+        }
+
+        const technologyMapping = loadYAMLContent(`${configDir}/category-mapping.yaml`);
+        const specialtyMapping = loadYAMLContent(`${configDir}/specialties.yaml`);
+
+        const documents = await parseDatabase(scanOptions);
+
+        console.log(`Найдено ${documents.length} документов`);
+        console.log('Сохранение в базу данных...');
+
+        try {
+          await saveDocuments({
+            documents,
+            technologyMapping: technologyMapping as TechnologyMapping,
+            specialtyMapping,
+          });
+          console.log('Парсинг завершен успешно');
+        } catch (error) {
+          console.error('Ошибки при сохранении статей:');
+
+          if (error instanceof Error) {
+            console.error(error.message);
+          } else {
+            console.error(`Неизвестная ошибка: ${error}`);
+          }
+
+          process.exit(1);
+        }
+      } catch (error) {
+        console.error('Ошибка при парсинге:', error);
+        process.exit(1);
+      }
+    });
+
+  // todo: обновить скрипт
+  program
+    .command(CHECK_UPDATES)
+    .description('Проверить какие файлы требуют обновления')
+    .option(flagsPath, 'Путь к документации', DOCS_PATH)
+    .option(flagsConfig, 'Путь к конфигурационным файлам', CONFIG_PATH)
+    .option(flagsCheckOnly, 'Проверить обновления без сохранения')
+    .action(async (options: CheckUpdatesOptions) => {
+      try {
+        try {
+          console.log('🔍 Проверка обновлений...');
+          const configDir = options.configDir || CONFIG_PATH;
+
+          const scanOptions: ScanOptions = {
+            docsPath: options.path,
+            configPath: {
+              technologyPath: `${configDir}/category-mapping.yaml`,
+              specialtiesPath: `${configDir}/specialties.yaml`,
+            },
+          };
+
+          const documents = await parseDatabase(scanOptions);
+          const changedFiles = await filterChangedFiles(documents);
+
+          console.log(`\n📊 Статистика:`);
+          console.log(`   Всего файлов: ${documents.length}`);
+          console.log(`   Требуют обновления: ${changedFiles.length}`);
+          console.log(`   Неизмененных: ${documents.length - changedFiles.length}`);
+
+          if (changedFiles.length === 0) {
+            console.log('\n✅ Нет файлов для обновления');
+          } else {
+            console.log(`\n🔄 Найдено ${changedFiles.length} файлов для обновления`);
+          }
+        } catch (error) {
+          console.error('❌ Ошибка при проверке обновлений:', error);
+          process.exit(1);
+        }
+      } catch (error) {
+        console.error('❌ Ошибка при проверке обновлений:', error);
+        process.exit(1);
+      }
+    });
+
+  // todo: обновить скрипт
+  program
+    .command(UPDATE_ARTICLES)
+    .description('Обновить измененные статьи в базе данных')
+    .option(flagsPath, 'Путь к документации', DOCS_PATH)
+    .option(flagsConfig, 'Путь к конфигурационным файлам', CONFIG_PATH)
+    .option(flagsForce, 'Обновить измененные статьи') // todo: проверить, что обновляются только измененные статьи
+    .action(async (options: UpdateArticlesOptions) => {
+      try {
+        console.log('🔄 Обновление статей...');
+
+        const configDir = options.configDir || CONFIG_PATH;
+
+        const scanOptions: ScanOptions = {
+          docsPath: options.path,
+          configPath: {
+            technologyPath: `${configDir}/category-mapping.yaml`,
+            specialtiesPath: `${configDir}/specialties.yaml`,
+          },
+        };
+
+        const documents = await parseDatabase(scanOptions);
+        let filesToUpdate = documents;
+
+        if (!options.force) {
+          // Получаем только измененные файлы
+          filesToUpdate = await filterChangedFiles(documents);
+        }
+
+        if (filesToUpdate.length === 0) {
+          console.log('\n✅ Нет файлов для обновления');
+          return;
+        }
+
+        console.log(`\n📊 Статистика обновления:`);
+        console.log(`   Всего файлов: ${documents.length}`);
+        console.log(`   Будет обновлено: ${filesToUpdate.length}`);
+        console.log(`   Неизмененных: ${documents.length - filesToUpdate.length}`);
+
+        if (!options.force) {
+          console.log(`\n🔄 Найдено ${filesToUpdate.length} файлов для обновления:`);
+          console.log('='.repeat(50));
+
+          filesToUpdate.forEach((file, index) => {
+            console.log(`${index + 1}. ${file.title}`);
+            console.log(`   ID: ${file.id}`);
+            console.log(`   Специальность: ${file.specialty}`);
+            console.log(`   Технология: ${file.technology}`);
+            console.log('');
+          });
+        }
+
+        // Сохраняем документы в базу данных
+        console.log('\n💾 Сохранение в базу данных...');
+        try {
+          await saveDocuments({ documents: filesToUpdate });
+          console.log(`\n✅ Успешно обновлено ${filesToUpdate.length} статей`);
+        } catch (error) {
+          console.error('\n❌ Ошибки при сохранении статей:');
+          if (error instanceof Error) {
+            console.error(`   ${error.message}`);
+          } else {
+            console.error(`   Неизвестная ошибка: ${error}`);
+          }
+          process.exit(1);
+        }
+      } catch (error) {
+        console.error('❌ Ошибка при обновлении статей:', error);
+        process.exit(1);
+      }
+    });
+
+  await program.parseAsync();
 }
 
-/**
- * CLI интерфейс для 2shark
- *
- * Предоставляет команды для:
- * - Сканирования документации
- * - Инициализации базы данных
- * - Очистки базы данных
- *
- * @example
- * ```bash
- * # Сканирование документации
- * 2shark parse-db
- *
- * # Сканирование с кастомными путями
- * 2shark parse-db -p ./my-docs -c ./my-config.yaml
- *
- * # Инициализация базы данных
- * 2shark init-db
- *
- * # Очистка базы данных
- * 2shark clear-db
- * ```
- */
-const program = new Command();
-
-program
-  .name('2shark')
-  .description('Скрипт для сканирования документации и формирования PostgreSQL базы данных')
-  .version('1.0.0');
-
-/**
- * Команда для сканирования документации
- *
- * Сканирует указанную директорию на наличие Markdown файлов,
- * обрабатывает их и может сохранить в базу данных.
- *
- * @example
- * ```bash
- * # Базовое сканирование
- * 2shark parse-db
- *
- * # Сканирование с кастомным путем
- * 2shark parse-db -p ./my-documentation
- *
- * # Сканирование с кастомной конфигурацией
- * 2shark parse-db -c ./my-category-mapping.yaml
- *
- * # Сканирование с очисткой базы данных
- * 2shark parse-db --clear
- *
- * # Полная настройка
- * 2shark parse-db -p ./docs -c ./config.yaml --clear
- * ```
- */
-program
-  .command('parse-db')
-  .description('Сканировать документацию')
-  .option('-p, --path <path>', 'Путь к документации', './docs')
-  .option('-c, --config <path>', 'Путь к конфигурационному файлу', './config/category-mapping.yaml')
-  .option('--clear', 'Очистить базу данных перед сканированием')
-  .action(async (options: ParseDbOptions) => {
-    try {
-      // todo: clearBeforeScan, найти возможность искать существующие статьи и сравнивать произошло ли в них изменения, если произошли то перезатираем БД, если нет, оставляем дефолт
-      const scanOptions: ScanOptions = {
-        docsPath: options.path,
-        configPath: options.config,
-        clearBeforeScan: options.clear,
-      };
-
-      if (options.clear) {
-        console.log('Очищаем базу данных...');
-        await clearDatabase();
-      }
-
-      console.log('Сканируем документацию...');
-      const items = await parseDatabase(scanOptions);
-      console.log(`Найдено ${items.length} документов`);
-
-      // Здесь можно добавить сохранение в базу данных
-      console.log('Сканирование завершено');
-    } catch (error) {
-      console.error('Ошибка:', error);
-      process.exit(1);
-    }
-  });
-
-/**
- * Команда для инициализации базы данных
- *
- * Создает все необходимые таблицы в PostgreSQL:
- * - specialties: специальности
- * - technologies: технологии
- * - specialty_technology: связь специальности и технологии
- * - articles: статьи документации
- * - tags: теги
- * - article_tags: связь статей и тегов
- *
- * @example
- * ```bash
- * # Инициализация с дефолтными настройками
- * 2shark init-db
- *
- * # Инициализация с переменными окружения
- * DB_HOST=localhost DB_PORT=5432 DB_NAME=docs_db 2shark init-db
- * ```
- *
- * @requires PostgreSQL сервер должен быть запущен и доступен
- * @requires Переменные окружения или дефолтные настройки для подключения к БД
- */
-program
-  .command('init-db')
-  .description('Инициализировать базу данных')
-  .action(async () => {
-    try {
-      console.log('Инициализируем базу данных...');
-      await initDatabase();
-      console.log('✅ База данных инициализирована');
-    } catch (error) {
-      console.error('Ошибка:', error);
-      process.exit(1);
-    }
-  });
-
-/**
- * Команда для очистки базы данных
- *
- * Удаляет все данные из всех таблиц в правильном порядке
- * для соблюдения внешних ключей. Используется для полной
- * очистки базы данных перед новым сканированием.
- *
- * @example
- * ```bash
- * # Очистка с дефолтными настройками
- * 2shark clear-db
- *
- * # Очистка с кастомной конфигурацией
- * DB_HOST=my-host.com DB_NAME=my_db 2shark clear-db
- * ```
- *
- * @warning Удаляет ВСЕ данные из базы данных без возможности восстановления
- * @requires PostgreSQL сервер должен быть запущен и доступен
- */
-program
-  .command('clear-db')
-  .description('Очистить базу данных')
-  .action(async () => {
-    try {
-      console.log('Очищаем базу данных...');
-      await clearDatabase();
-      console.log('База данных очищена');
-    } catch (error) {
-      console.error('Ошибка:', error);
-      process.exit(1);
-    }
-  });
-
-/**
- * Запускает CLI интерфейс
- *
- * Парсит аргументы командной строки и выполняет
- * соответствующую команду или показывает справку.
- *
- * @example
- * ```bash
- * # Показать справку
- * 2shark --help
- *
- * # Показать справку по команде
- * 2shark scan --help
- *
- * # Показать версию
- * 2shark --version
- * ```
- */
-program.parse();
+main().catch((error) => {
+  console.error('Critical error:', error);
+  process.exit(1);
+});

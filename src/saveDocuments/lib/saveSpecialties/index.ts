@@ -1,0 +1,1 @@
+export { saveSpecialties } from './saveSpecialties';

@@ -1,1 +1,2 @@
-export { initDatabase, initDatabaseSchema } from './initDatabase';
+export { initDatabase } from './initDatabase';
+export { initDatabaseSchema } from './schema';

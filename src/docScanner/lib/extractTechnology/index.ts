@@ -1,0 +1,1 @@
+export { extractTechnology } from './extractTechnology';

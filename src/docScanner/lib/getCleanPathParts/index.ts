@@ -1,0 +1,1 @@
+export { getCleanPathParts } from './getCleanPathParts';
