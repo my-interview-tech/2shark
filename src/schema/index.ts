@@ -184,8 +184,47 @@ const CREATE_IMPORT_JOBS_TABLE_QUERY = `
   `;
 
 // ============================================================================
+// MIGRATION QUERIES (db-0007)
+// ============================================================================
+
+/**
+ * db-0007: поля экранов статьи и технологии.
+ *
+ * Неразрушающая миграция: `ADD COLUMN IF NOT EXISTS`, выполняется на каждом import
+ * и после `init-db`. Таблицы, которых ещё нет, пропускаются через `ALTER TABLE IF EXISTS`.
+ */
+const MIGRATE_DB_0007_QUERIES = [
+  `ALTER TABLE IF EXISTS technologies ADD COLUMN IF NOT EXISTS public_slug VARCHAR(255)`,
+  `ALTER TABLE IF EXISTS technologies ADD COLUMN IF NOT EXISTS title VARCHAR(255)`,
+  `ALTER TABLE IF EXISTS technologies ADD COLUMN IF NOT EXISTS meta JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uq_technologies_public_slug ON technologies (public_slug)`,
+  `ALTER TABLE IF EXISTS articles ADD COLUMN IF NOT EXISTS kind VARCHAR(16) NOT NULL DEFAULT 'article'`,
+  `ALTER TABLE IF EXISTS articles ADD COLUMN IF NOT EXISTS chapter VARCHAR(255) NOT NULL DEFAULT ''`,
+  `ALTER TABLE IF EXISTS articles ADD COLUMN IF NOT EXISTS chapter_anchor VARCHAR(255) NOT NULL DEFAULT ''`,
+  `ALTER TABLE IF EXISTS articles ADD COLUMN IF NOT EXISTS chapter_order INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE IF EXISTS articles ADD COLUMN IF NOT EXISTS complexity SMALLINT NULL`,
+  `ALTER TABLE IF EXISTS articles ADD COLUMN IF NOT EXISTS importance SMALLINT NULL`,
+  `ALTER TABLE IF EXISTS articles ADD COLUMN IF NOT EXISTS content_md TEXT NULL`,
+  `ALTER TABLE IF EXISTS articles ADD COLUMN IF NOT EXISTS preview_md TEXT NULL`,
+  `ALTER TABLE IF EXISTS articles ADD COLUMN IF NOT EXISTS toc JSONB NOT NULL DEFAULT '[]'::jsonb`,
+  `ALTER TABLE IF EXISTS articles ADD COLUMN IF NOT EXISTS context JSONB NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_articles_technology_order
+     ON articles (technology_id, chapter_order, article_order)
+     WHERE is_deleted = false`,
+  `ALTER TABLE IF EXISTS article_links ADD COLUMN IF NOT EXISTS title TEXT NULL`,
+  `ALTER TABLE IF EXISTS article_links ADD COLUMN IF NOT EXISTS image TEXT NULL`,
+  `ALTER TABLE IF EXISTS article_links ADD COLUMN IF NOT EXISTS position INTEGER NOT NULL DEFAULT 0`,
+] as const;
+
+// ============================================================================
 // DELETE DATA QUERIES
 // ============================================================================
+
+/** Удаляет теги статьи перед повторной записью, чтобы убранные из frontmatter не оставались. */
+const DELETE_ARTICLE_TAGS_BY_ARTICLE_QUERY = `DELETE FROM article_tags WHERE article_id = $1`;
+
+/** Удаляет ссылки статьи перед повторной записью, чтобы убранные из info не оставались. */
+const DELETE_ARTICLE_LINKS_BY_ARTICLE_QUERY = `DELETE FROM article_links WHERE article_id = $1`;
 
 /**
  * Запрос для удаления всех данных из таблицы связей статей и тегов
@@ -272,10 +311,11 @@ const UPSERT_SPECIALTY_QUERY = `INSERT INTO specialties (name, slug, priority)
  * @param {number} priority - Приоритет технологии
  * @returns {number} - ID созданной или обновленной технологии
  */
-const UPSERT_TECHNOLOGY_QUERY = `INSERT INTO technologies (name, slug, priority) 
-         VALUES ($1, $2, $3) 
+const UPSERT_TECHNOLOGY_QUERY = `INSERT INTO technologies (name, slug, priority, public_slug, title, meta) 
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb) 
          ON CONFLICT (slug) DO UPDATE SET 
-         name = EXCLUDED.name, priority = EXCLUDED.priority 
+         name = EXCLUDED.name, priority = EXCLUDED.priority,
+         public_slug = EXCLUDED.public_slug, title = EXCLUDED.title, meta = EXCLUDED.meta
          RETURNING id`;
 
 /**
@@ -307,9 +347,19 @@ const UPSERT_SPECIALTY_TECHNOLOGY_QUERY = `INSERT INTO specialty_technology (spe
  * @param {string} fileHash - Хеш файла для отслеживания изменений
  * @returns {number} - ID созданной статьи
  */
-const INSERT_ARTICLE_QUERY = `INSERT INTO articles (uid, title, slug, content, specialty_id, technology_id, access, tools, article_order, priority, description, file_hash, created_at, updated_at, source_branch, source_commit_sha, source_path, imported_at, is_deleted, archived_at, archived_by_import_job_id, last_seen_commit_sha)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+const INSERT_ARTICLE_QUERY = `INSERT INTO articles (uid, title, slug, content, specialty_id, technology_id, access, tools, article_order, priority, description, file_hash, created_at, updated_at, source_branch, source_commit_sha, source_path, imported_at, is_deleted, archived_at, archived_by_import_job_id, last_seen_commit_sha, kind, chapter, chapter_anchor, chapter_order, complexity, importance, content_md, preview_md, toc, context)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31::jsonb, $32::jsonb)
          ON CONFLICT (uid) DO UPDATE SET
+         kind = EXCLUDED.kind,
+         chapter = EXCLUDED.chapter,
+         chapter_anchor = EXCLUDED.chapter_anchor,
+         chapter_order = EXCLUDED.chapter_order,
+         complexity = EXCLUDED.complexity,
+         importance = EXCLUDED.importance,
+         content_md = EXCLUDED.content_md,
+         preview_md = EXCLUDED.preview_md,
+         toc = EXCLUDED.toc,
+         context = EXCLUDED.context,
          uid = EXCLUDED.uid,
          title = EXCLUDED.title,
          content = EXCLUDED.content,
@@ -350,9 +400,10 @@ const INSERT_ARTICLE_TAG_QUERY = `INSERT INTO article_tags (article_id, tag_id)
  * @param {number} articleId - ID статьи
  * @param {string} url - URL ссылки
  */
-const INSERT_ARTICLE_LINK_QUERY = `INSERT INTO article_links (article_id, url) 
-         VALUES ($1, $2) 
-         ON CONFLICT (article_id, url) DO NOTHING
+const INSERT_ARTICLE_LINK_QUERY = `INSERT INTO article_links (article_id, url, title, image, position) 
+         VALUES ($1, $2, $3, $4, $5) 
+         ON CONFLICT (article_id, url) DO UPDATE SET
+         title = EXCLUDED.title, image = EXCLUDED.image, position = EXCLUDED.position
          RETURNING id`;
 
 /**
@@ -414,9 +465,14 @@ export const SCHEMA = {
   CREATE_ARTICLE_LINKS_TABLE_QUERY,
   CREATE_IMPORT_JOBS_TABLE_QUERY,
 
+  // MIGRATION queries
+  MIGRATE_DB_0007_QUERIES,
+
   // DELETE DATA queries
   DELETE_ARTICLE_TAGS_DATA_QUERY,
   DELETE_ARTICLE_LINKS_DATA_QUERY,
+  DELETE_ARTICLE_TAGS_BY_ARTICLE_QUERY,
+  DELETE_ARTICLE_LINKS_BY_ARTICLE_QUERY,
   DELETE_TAGS_DATA_QUERY,
   DELETE_ARTICLES_DATA_QUERY,
   DELETE_SPECIALTIES_DATA_QUERY,

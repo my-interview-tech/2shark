@@ -1,4 +1,4 @@
-import { TechnologyMapping, SpecialtyMapping } from '../../../types';
+import { TechnologyMapping, SpecialtyMapping, ChapterMapping } from '../../../types';
 
 export type TProcessMarkdownFileParams = {
   filePath: string;
@@ -18,5 +18,6 @@ export type TProcessMarkdownContentParams = {
   content: string;
   technologyMapping: TechnologyMapping;
   specialtyMapping: SpecialtyMapping;
+  chapterMapping?: ChapterMapping;
   revisionMetadata?: TRevisionMetadata;
 };

@@ -1,1 +1,1 @@
-export { readRevisionDocuments } from './readRevisionDocuments';
+export { readRevisionDocuments, listRevisionAssets } from './readRevisionDocuments';

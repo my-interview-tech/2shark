@@ -1,8 +1,8 @@
 import { PoolClient } from 'pg';
-import { NamedEntity } from '../../types';
+import { TechnologyEntity } from '../../types';
 
 export type TSaveTechnologies = {
   client: PoolClient;
-  technologies: Map<string, NamedEntity>;
+  technologies: Map<string, TechnologyEntity>;
   debug?: boolean;
 };

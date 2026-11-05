@@ -49,7 +49,40 @@ describe('Unit/saveDocuments/function/saveArticleRelations', () => {
             expect(client.query).toHaveBeenCalledWith('INSERT INTO article_tags', [42, 101]);
             expect(client.query).toHaveBeenCalledWith('INSERT INTO tags', ['b']);
             expect(client.query).toHaveBeenCalledWith('INSERT INTO article_tags', [42, 102]);
-            expect(client.query).toHaveBeenCalledWith('INSERT INTO article_links', [42, 'https://x']);
+            expect(client.query).toHaveBeenCalledWith('INSERT INTO article_links', [42, 'https://x', null, null, 0]);
+        });
+
+        it('пересобирает связи и пишет ссылки с подписью и позицией', async () => {
+            const doc = {
+                ...baseDoc,
+                info: ['https://a', 'https://b'],
+                links: [
+                    { url: 'https://a', title: 'A', image: 'https://a/img.png' },
+                    { url: 'https://b', title: null, image: null },
+                ],
+            };
+
+            client.query.mockResolvedValue({ rows: [] });
+
+            await saveArticleRelations({
+                client,
+                articleId: 7,
+                doc,
+                queries: {
+                    deleteArticleTags: 'DELETE FROM article_tags',
+                    deleteArticleLinks: 'DELETE FROM article_links',
+                    insertTag: 'INSERT INTO tags',
+                    insertArticleTag: 'INSERT INTO article_tags',
+                    insertArticleLink: 'INSERT INTO article_links',
+                },
+            });
+
+            expect(client.query.mock.calls).toEqual([
+                ['DELETE FROM article_tags', [7]],
+                ['DELETE FROM article_links', [7]],
+                ['INSERT INTO article_links', [7, 'https://a', 'A', 'https://a/img.png', 0]],
+                ['INSERT INTO article_links', [7, 'https://b', null, null, 1]],
+            ]);
         });
     });
 

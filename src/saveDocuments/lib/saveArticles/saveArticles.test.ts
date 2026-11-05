@@ -24,6 +24,13 @@ describe('Unit/helpers/function/saveArticles', () => {
                     file_hash: 'h',
                     created_at: new Date(),
                     updated_at: new Date(),
+                    kind: 'question',
+                    chapter: 'Вопросы с собеседований',
+                    chapterAnchor: 'questions',
+                    chapterOrder: 1,
+                    complexity: 2,
+                    toc: [{ id: 'hooks', label: 'Hooks' }],
+                    context: { caption: 'Основы' },
                 },
             ];
 
@@ -32,13 +39,32 @@ describe('Unit/helpers/function/saveArticles', () => {
 
             client.query
                 .mockResolvedValueOnce({ rows: [{ id: 100 }] }) // INSERT_ARTICLE_QUERY
+                .mockResolvedValueOnce({ rows: [] })            // DELETE_ARTICLE_TAGS_BY_ARTICLE_QUERY
+                .mockResolvedValueOnce({ rows: [] })            // DELETE_ARTICLE_LINKS_BY_ARTICLE_QUERY
                 .mockResolvedValueOnce({ rows: [{ id: 200 }] }) // INSERT_TAG_QUERY
                 .mockResolvedValueOnce({ rows: [{ id: 1 }] })   // INSERT_ARTICLE_TAG_QUERY (returning)
                 .mockResolvedValueOnce({ rows: [{ id: 1 }] });  // INSERT_ARTICLE_LINK_QUERY (returning)
 
             await saveArticles({ client, documents, specialtyIds, technologyIds });
 
+            const articleParams = client.query.mock.calls[0][1];
+
             expect(client.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO articles'), expect.any(Array));
+            expect(articleParams).toHaveLength(32);
+            expect(articleParams.slice(22)).toEqual([
+                'question',
+                'Вопросы с собеседований',
+                'questions',
+                1,
+                2,
+                null,
+                null,
+                null,
+                JSON.stringify([{ id: 'hooks', label: 'Hooks' }]),
+                JSON.stringify({ caption: 'Основы' }),
+            ]);
+            expect(client.query).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM article_tags'), [100]);
+            expect(client.query).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM article_links'), [100]);
             expect(client.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO tags'), expect.any(Array));
             expect(client.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO article_tags'), expect.any(Array));
             expect(client.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO article_links'), expect.any(Array));

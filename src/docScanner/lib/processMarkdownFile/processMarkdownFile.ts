@@ -1,7 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
-import { validateLinks } from '../validateLinks';
+import { parseLinks } from '../validateLinks';
+import { parseContext, parseKind, parseLevel, resolveChapter } from '../parseArticleMeta';
 import { calculateFileHash } from '../fileHash';
 import { getCleanPathParts } from '../getCleanPathParts';
 import { extractTechnology } from '../extractTechnology';
@@ -52,6 +53,7 @@ export function processMarkdownContent({
   content,
   technologyMapping,
   specialtyMapping,
+  chapterMapping,
   revisionMetadata,
 }: TProcessMarkdownContentParams): DocItem | null {
   try {
@@ -152,6 +154,20 @@ export function processMarkdownContent({
 
     const tags = Array.isArray(data?.tags) ? data.tags : [];
 
+    if (data?.kind !== undefined && !parseKind(data.kind)) {
+      console.error(`Ошибка валидации файла ${filePath}: неизвестный kind "${String(data.kind)}"`);
+
+      return null;
+    }
+
+    const chapterConfig = resolveChapter({
+      chapter: data?.chapter,
+      technologyChapters: mapping.chapters,
+      chapterMapping,
+    });
+    const kind = parseKind(data?.kind) ?? chapterConfig.kind ?? parseKind(mapping.kind) ?? 'article';
+    const links = parseLinks(data?.info);
+
     const result: DocItem = {
       id: uid,
       uid,
@@ -162,10 +178,18 @@ export function processMarkdownContent({
       priority,
       description,
       tags,
-      info: validateLinks(data?.info),
+      info: links.map((link) => link.url),
+      links,
       access,
       tools,
       order: orderValue,
+      kind,
+      chapter: chapterConfig.title,
+      chapterAnchor: chapterConfig.anchor,
+      chapterOrder: chapterConfig.order,
+      complexity: parseLevel(data?.complexity),
+      importance: parseLevel(data?.importance),
+      context: parseContext(data?.context),
       file_hash: calculateFileHash(content),
       created_at: createdAt,
       updated_at: updatedAt,

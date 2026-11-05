@@ -1,1 +1,1 @@
-export { createNamedEntity, createSpecialty, createTechnology } from './createNamedEntity';
+export { createNamedEntity, createSpecialty, createTechnology, createTechnologyEntity } from './createNamedEntity';

@@ -1,17 +1,19 @@
 import { runImport } from './runImport';
-import { clearDatabase } from '../database';
+import { clearDatabase, migrateDatabaseSchema } from '../database';
 import { loadYAMLContent } from '../docScanner';
 import { filterChangedFiles } from '../helpers';
 import { saveDocuments } from '../saveDocuments';
 import { readRevisionDocuments } from './git-source';
 import { createImportJob, markImportJobFailed, markImportJobRunning, markImportJobSuccess } from './jobs';
 import { reconcilePublishedRevision } from './reconcile';
+import { normalizeDocuments } from '../normalize';
 import { DESCRIBE_CASES } from '../helpers/test';
 import { DocItem } from '../types';
 import { Pool } from 'pg';
 
 jest.mock('../database', () => ({
   clearDatabase: jest.fn(),
+  migrateDatabaseSchema: jest.fn(),
 }));
 
 jest.mock('../docScanner', () => ({
@@ -28,6 +30,12 @@ jest.mock('../saveDocuments', () => ({
 
 jest.mock('./git-source', () => ({
   readRevisionDocuments: jest.fn(),
+  listRevisionAssets: jest.fn(() => []),
+}));
+
+jest.mock('../normalize', () => ({
+  MAX_STORED_WARNINGS: 2,
+  normalizeDocuments: jest.fn(({ documents }) => ({ documents, warnings: [] })),
 }));
 
 jest.mock('./jobs', () => ({
@@ -167,6 +175,10 @@ describe('Unit/import/function/runImport', () => {
         commitSha: 'abc123',
       });
       expect(markImportJobRunning).toHaveBeenCalledWith(expect.any(Object), '1');
+      expect(migrateDatabaseSchema).toHaveBeenCalledWith(mockJobsClient);
+      expect((migrateDatabaseSchema as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        (createImportJob as jest.Mock).mock.invocationCallOrder[0],
+      );
       expect(reconcilePublishedRevision).toHaveBeenCalledWith(expect.any(Object), {
         importJobId: '1',
         branch: 'main',
@@ -179,6 +191,8 @@ describe('Unit/import/function/runImport', () => {
         updated: 1,
         skipped: 1,
         archived: 0,
+        warnings: [],
+        warningsTotal: 0,
       });
     });
 
@@ -200,7 +214,38 @@ describe('Unit/import/function/runImport', () => {
         updated: 1,
         skipped: 1,
         archived: 2,
+        warnings: [],
+        warningsTotal: 0,
       });
+    });
+
+    it('Должна сохранить первые предупреждения нормализации и их общее число', async () => {
+      const warnings = [
+        { uid: 'uid-1', type: 'unresolved-link', target: 'a' },
+        { uid: 'uid-1', type: 'unresolved-link', target: 'b' },
+        { uid: 'uid-2', type: 'base64-image' },
+      ];
+      (normalizeDocuments as jest.Mock).mockImplementationOnce(({ documents }) => ({ documents, warnings }));
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+      await runImport({
+        docsPath: './docs',
+        configDir: './config',
+        repoPath: '/tmp/repo',
+        branch: 'main',
+        commitSha: 'abc123',
+        isProductionSync: true,
+      });
+
+      expect(normalizeDocuments).toHaveBeenCalledWith(
+        expect.objectContaining({ documents: mockDocuments, docsRoot: './docs', assetPaths: [] }),
+      );
+      expect(markImportJobSuccess).toHaveBeenCalledWith(
+        expect.any(Object),
+        '1',
+        expect.objectContaining({ warnings: warnings.slice(0, 2), warningsTotal: 3 }),
+      );
+      warnSpy.mockRestore();
     });
 
     it('Должна читать документы из git revision при переданных branch и commitSha', async () => {

@@ -1,5 +1,5 @@
 import { execFileSync } from 'child_process';
-import { readRevisionDocuments } from './readRevisionDocuments';
+import { listRevisionAssets, readRevisionDocuments } from './readRevisionDocuments';
 import { processMarkdownContent } from '../../docScanner/lib/processMarkdownFile';
 import { DESCRIBE_CASES } from '../../helpers/test';
 import { DocItem } from '../../types';
@@ -78,6 +78,20 @@ describe('Unit/import/function/readRevisionDocuments', () => {
       expect(result).toHaveLength(2);
       expect(processMarkdownContent).toHaveBeenCalledTimes(2);
       expect(execFileSync).toHaveBeenCalled();
+    });
+
+    it('Должна вернуть картинки vault с путями от его корня', () => {
+      (execFileSync as jest.MockedFunction<typeof execFileSync>).mockReturnValueOnce(
+        'docs/a.md\ndocs/img/Pasted image 1.png\ndocs/img/logo.WEBP\ndocs/.DS_Store\n',
+      );
+
+      const result = listRevisionAssets({ repoPath: '/tmp/repo', docsPath: './docs/', commitSha: 'abc123' });
+
+      expect(result).toEqual(['img/Pasted image 1.png', 'img/logo.WEBP']);
+      expect(execFileSync).toHaveBeenCalledWith('git', ['ls-tree', '-r', '--name-only', 'abc123', '--', 'docs'], {
+        cwd: '/tmp/repo',
+        encoding: 'utf-8',
+      });
     });
 
     it('Должна вернуть пустой список если markdown-файлов нет', () => {

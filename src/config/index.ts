@@ -10,3 +10,9 @@ export const DB_CONFIG: DatabaseConfig = {
   user: process.env['DB_USER'] || 'postgres',
   password: process.env['DB_PASSWORD'] || 'password',
 };
+
+/**
+ * Адрес, с которого сайт базы знаний раздаёт картинки vault.
+ * Путь картинки строится по правилам Quartz: `img/Pasted image 1.png` → `<base>/img/Pasted-image-1.png`.
+ */
+export const ASSETS_BASE_URL = (process.env['ASSETS_BASE_URL'] || 'https://my-interview.tech').replace(/\/+$/, '');

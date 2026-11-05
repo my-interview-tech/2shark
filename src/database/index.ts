@@ -1,1 +1,1 @@
-export { initDatabase, clearDatabase } from './lib';
+export { initDatabase, clearDatabase, migrateDatabase, migrateDatabaseSchema } from './lib';

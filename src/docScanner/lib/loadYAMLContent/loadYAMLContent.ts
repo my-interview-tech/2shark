@@ -1,8 +1,8 @@
 import fsSync from 'fs';
 import yaml from 'js-yaml';
-import { SpecialtyMapping, TechnologyMapping } from '../../../types';
+import { YAMLContent } from '../../../types';
 
-type TYAMLContent = SpecialtyMapping | TechnologyMapping;
+type TYAMLContent = YAMLContent;
 
 /**
  * Загружает конфигурацию из YAML файла
