@@ -11,8 +11,8 @@ describe('Unit/helpers/function/saveTechnologies', () => {
     describe(DESCRIBE_CASES.SUCCESS, () => {
         it('сохраняет технологии и возвращает их id', async () => {
             const technologies = new Map<string, any>([
-                ['React', { name: 'React', slug: 'react', priority: 5 }],
-                ['TypeScript', { name: 'TypeScript', slug: 'typescript', priority: 3 }],
+                ['React', { name: 'React', slug: 'react', priority: 5, publicSlug: 'react', title: 'React', meta: { icon: 'icon-react.svg' } }],
+                ['TypeScript', { name: 'TypeScript', slug: 'typescript', priority: 3, publicSlug: null, title: 'TypeScript', meta: {} }],
             ]);
 
             client.query
@@ -23,8 +23,8 @@ describe('Unit/helpers/function/saveTechnologies', () => {
 
             expect(ids.get('React')).toBe(10);
             expect(ids.get('TypeScript')).toBe(20);
-            expect(client.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO technologies'), ['React', 'react', 5]);
-            expect(client.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO technologies'), ['TypeScript', 'typescript', 3]);
+            expect(client.query.mock.calls[0][1]).toEqual(['React', 'react', 5, 'react', 'React', '{"icon":"icon-react.svg"}']);
+            expect(client.query.mock.calls[1][1]).toEqual(['TypeScript', 'typescript', 3, null, 'TypeScript', '{}']);
         });
     });
 

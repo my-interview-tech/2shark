@@ -4,8 +4,9 @@ import { TSaveArticleRelations } from "./types";
  * Сохраняет теги и ссылки для статьи
  *
  * Правила:
+ * - Если переданы deleteArticleTags/deleteArticleLinks, старые связи статьи удаляются до записи
  * - Для каждого тега выполняется вставка в `tags` (insertTag), затем связывание в `article_tags` (insertArticleTag)
- * - Для каждой ссылки выполняется вставка в `article_links` (insertArticleLink)
+ * - Для каждой ссылки выполняется вставка в `article_links` (insertArticleLink) с подписью, картинкой и позицией
  * - Транзакция должна быть открыта снаружи
  * - При debug=true пишет подробные логи
  *
@@ -32,6 +33,9 @@ import { TSaveArticleRelations } from "./types";
 export const saveArticleRelations = async (
     { client, articleId, doc, queries, debug = false }: TSaveArticleRelations,
 ): Promise<void> => {
+    if (queries.deleteArticleTags) await client.query(queries.deleteArticleTags, [articleId]);
+    if (queries.deleteArticleLinks) await client.query(queries.deleteArticleLinks, [articleId]);
+
     // Сохраняем теги
     for (const tagName of doc.tags) {
         if (debug) console.log(`Сохраняем тег: ${tagName}`);
@@ -42,10 +46,12 @@ export const saveArticleRelations = async (
         await client.query(queries.insertArticleTag, [articleId, tagId]);
     }
 
-    // Сохраняем ссылки
-    for (const url of doc.info) {
-        if (debug) console.log(`Сохраняем ссылку: ${url}`);
+    // Сохраняем ссылки в порядке frontmatter
+    const links = doc.links ?? doc.info.map((url) => ({ url, title: null, image: null }));
 
-        await client.query(queries.insertArticleLink, [articleId, url]);
+    for (const [position, link] of links.entries()) {
+        if (debug) console.log(`Сохраняем ссылку: ${link.url}`);
+
+        await client.query(queries.insertArticleLink, [articleId, link.url, link.title, link.image, position]);
     }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { initDatabase, clearDatabase } from '../database';
+import { initDatabase, clearDatabase, migrateDatabase } from '../database';
 import { runImport } from '../import';
 import { TRunImportOptions } from '../types';
 import {
@@ -13,6 +13,7 @@ import {
   IMPORT,
   INIT_DB,
   CLEAR_DB,
+  MIGRATE_DB,
   flagsCheckOnly,
   flagsClear,
   flagsConfig,
@@ -125,6 +126,19 @@ async function main() {
         console.log('База данных инициализирована успешно');
       } catch (error) {
         console.error('Ошибка при инициализации базы данных:', error);
+        process.exit(1);
+      }
+    });
+
+  program
+    .command(MIGRATE_DB)
+    .description('Применить неразрушающие миграции схемы')
+    .action(async () => {
+      try {
+        await migrateDatabase();
+        console.log('Миграции применены');
+      } catch (error) {
+        console.error('Ошибка при миграции базы данных:', error);
         process.exit(1);
       }
     });

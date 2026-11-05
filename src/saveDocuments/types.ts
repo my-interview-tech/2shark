@@ -10,6 +10,18 @@ export interface NamedEntity {
   priority: number;
 }
 
+/**
+ * Технология с полями подачи из `category-mapping.yaml`.
+ */
+export interface TechnologyEntity extends NamedEntity {
+  /** Слаг в адресе `/topics/<slug>`; null — технология не публикуется */
+  publicSlug: string | null;
+  /** Название на сайте */
+  title: string;
+  /** Иконка, prerequisites, subscribe, context, resources и переопределения chapters */
+  meta: Record<string, unknown>;
+}
+
 export type TSaveDocuments = {
   documents: DocItem[];
   config?: DatabaseConfig;

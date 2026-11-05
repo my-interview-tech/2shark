@@ -84,6 +84,16 @@ export async function saveArticles(
             null,
             null,
             doc.sourceCommitSha || null,
+            doc.kind ?? 'article',
+            doc.chapter ?? '',
+            doc.chapterAnchor ?? '',
+            doc.chapterOrder ?? 0,
+            doc.complexity ?? null,
+            doc.importance ?? null,
+            doc.contentMd ?? null,
+            doc.previewMd ?? null,
+            JSON.stringify(doc.toc ?? []),
+            doc.context ? JSON.stringify(doc.context) : null,
         ]);
 
         const articleId = articleResult.rows[0].id;
@@ -94,6 +104,8 @@ export async function saveArticles(
             articleId,
             doc,
             queries: {
+                deleteArticleTags: SCHEMA.DELETE_ARTICLE_TAGS_BY_ARTICLE_QUERY,
+                deleteArticleLinks: SCHEMA.DELETE_ARTICLE_LINKS_BY_ARTICLE_QUERY,
                 insertTag: SCHEMA.INSERT_TAG_QUERY,
                 insertArticleTag: SCHEMA.INSERT_ARTICLE_TAG_QUERY,
                 insertArticleLink: SCHEMA.INSERT_ARTICLE_LINK_QUERY,

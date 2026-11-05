@@ -1,1 +1,1 @@
-export { validateLinks } from './validateLinks';
+export { validateLinks, parseLinks } from './validateLinks';

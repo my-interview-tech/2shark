@@ -6,6 +6,8 @@ export type TSaveArticleRelations = {
     articleId: number;
     doc: DocItem;
     queries: {
+        deleteArticleTags?: string;
+        deleteArticleLinks?: string;
         insertTag: string;
         insertArticleTag: string;
         insertArticleLink: string;

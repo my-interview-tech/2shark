@@ -1,6 +1,6 @@
-import { processMarkdownFile } from './processMarkdownFile';
+import { processMarkdownContent, processMarkdownFile } from './processMarkdownFile';
 import { DESCRIBE_CASES } from '../../../helpers/test';
-import { TechnologyMapping } from '../../../types';
+import { ChapterMapping, TechnologyMapping } from '../../../types';
 
 jest.mock('fs/promises', () => ({
   readFile: jest.fn(),
@@ -21,6 +21,11 @@ const mockTechnologyMapping: TechnologyMapping = {
 
 const mockSpecialtyMapping = {
   Frontend: { priority: 1, description: 'Frontend development' },
+};
+
+const mockChapterMapping: ChapterMapping = {
+  'Подготовка к собеседованию': { title: 'Вопросы с собеседований', anchor: 'questions', order: 1, kind: 'question' },
+  Задачи: { title: 'Задачи', anchor: 'tasks', order: 2, kind: 'task' },
 };
 
 const baseFrontmatter = {
@@ -74,13 +79,72 @@ describe('Unit/utility/function/processMarkdownFile', () => {
         description: 'React framework',
         tags: ['react'],
         info: ['https://react.dev'],
+        links: [{ url: 'https://react.dev', title: null, image: null }],
         access: 'public',
         tools: ['React'],
         order: 10,
+        kind: 'article',
+        chapter: 'Материалы',
+        chapterAnchor: 'materials',
+        chapterOrder: 999,
+        complexity: null,
+        importance: null,
+        context: null,
         file_hash: expect.any(String),
         created_at: new Date('2025-01-01T00:00:00.000Z'),
         updated_at: new Date('2025-01-02T00:00:00.000Z'),
       });
+    });
+
+    it('Должна разобрать поля экрана: kind, chapter, уровни, context и объектный info', () => {
+      mockMatter.mockReturnValue(
+        createMatterResult({
+          ...baseFrontmatter,
+          kind: 'question',
+          chapter: 'Подготовка к собеседованию',
+          complexity: 2,
+          importance: 5,
+          context: { caption: 'Хуки', result: ['Объяснить useEffect'] },
+          info: ['https://react.dev', { url: 'https://habr.com/x', title: 'Хабр', image: 'https://habr.com/x.png' }],
+        }),
+      );
+
+      const result = processMarkdownContent({
+        filePath: 'docs/react/hooks.md',
+        content: '# content',
+        technologyMapping: mockTechnologyMapping,
+        specialtyMapping: mockSpecialtyMapping,
+        chapterMapping: mockChapterMapping,
+      });
+
+      expect(result).toMatchObject({
+        kind: 'question',
+        chapter: 'Вопросы с собеседований',
+        chapterAnchor: 'questions',
+        chapterOrder: 1,
+        complexity: 2,
+        importance: null,
+        context: { caption: 'Хуки', result: ['Объяснить useEffect'] },
+        info: ['https://react.dev', 'https://habr.com/x'],
+        links: [
+          { url: 'https://react.dev', title: null, image: null },
+          { url: 'https://habr.com/x', title: 'Хабр', image: 'https://habr.com/x.png' },
+        ],
+      });
+    });
+
+    it('Должна взять kind из chapter, если во frontmatter его нет', () => {
+      mockMatter.mockReturnValue(createMatterResult({ ...baseFrontmatter, chapter: 'Задачи' }));
+
+      const result = processMarkdownContent({
+        filePath: 'docs/react/task.md',
+        content: '# content',
+        technologyMapping: mockTechnologyMapping,
+        specialtyMapping: mockSpecialtyMapping,
+        chapterMapping: mockChapterMapping,
+      });
+
+      expect(result).toMatchObject({ kind: 'task', chapterAnchor: 'tasks' });
     });
   });
 
@@ -203,6 +267,21 @@ describe('Unit/utility/function/processMarkdownFile', () => {
 
       const result = await processMarkdownFile({
         filePath: '/tmp/docs/react/invalid-tools-types.md',
+        technologyMapping: mockTechnologyMapping,
+        specialtyMapping: mockSpecialtyMapping,
+      });
+
+      expect(result).toBeNull();
+      errorSpy.mockRestore();
+    });
+
+    it('Должна вернуть null если kind неизвестен', () => {
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockMatter.mockReturnValue(createMatterResult({ ...baseFrontmatter, kind: 'lesson' }));
+
+      const result = processMarkdownContent({
+        filePath: 'docs/react/invalid-kind.md',
+        content: '# content',
         technologyMapping: mockTechnologyMapping,
         specialtyMapping: mockSpecialtyMapping,
       });

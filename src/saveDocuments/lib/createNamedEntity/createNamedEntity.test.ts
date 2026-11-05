@@ -1,4 +1,4 @@
-import { createNamedEntity, createSpecialty, createTechnology } from './createNamedEntity';
+import { createNamedEntity, createSpecialty, createTechnology, createTechnologyEntity } from './createNamedEntity';
 import { DESCRIBE_CASES } from '../../../helpers/test';
 
 describe('Unit/saveDocuments/function/createNamedEntity', () => {
@@ -62,6 +62,40 @@ describe('Unit/saveDocuments/function/createNamedEntity', () => {
 
             expect(entity1).toEqual(entity2);
             expect(entity2).toEqual(entity3);
+        });
+    });
+
+    describe('createTechnologyEntity', () => {
+        it('берёт слаг, название и поля подачи из YAML', () => {
+            const result = createTechnologyEntity('JSCore', 3, {
+                specialty: 'Frontend',
+                priority: 3,
+                description: 'Основы JS',
+                slug: ' javascript ',
+                title: 'JavaScript',
+                icon: 'icon-javascript.svg',
+                prerequisites: ['html'],
+            });
+
+            expect(result).toEqual({
+                name: 'JSCore',
+                slug: 'jscore',
+                priority: 3,
+                publicSlug: 'javascript',
+                title: 'JavaScript',
+                meta: { icon: 'icon-javascript.svg', prerequisites: ['html'] },
+            });
+        });
+
+        it('без slug технология не публикуется, название совпадает с именем', () => {
+            expect(createTechnologyEntity('Навигация', 0)).toEqual({
+                name: 'Навигация',
+                slug: 'навигация',
+                priority: 0,
+                publicSlug: null,
+                title: 'Навигация',
+                meta: {},
+            });
         });
     });
 

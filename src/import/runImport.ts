@@ -1,13 +1,16 @@
-import { clearDatabase } from '../database';
-import { DB_CONFIG } from '../config';
+import path from 'path';
+import { clearDatabase, migrateDatabaseSchema } from '../database';
+import { ASSETS_BASE_URL, DB_CONFIG } from '../config';
 import { loadYAMLContent } from '../docScanner';
 import { filterChangedFiles } from '../helpers';
-import { readRevisionDocuments } from './git-source';
+import { MAX_STORED_WARNINGS, normalizeDocuments } from '../normalize';
+import { listRevisionAssets, readRevisionDocuments } from './git-source';
 import { createImportJob, markImportJobFailed, markImportJobRunning, markImportJobSuccess } from './jobs';
 import { reconcilePublishedRevision } from './reconcile';
 import { Pool } from 'pg';
 import { saveDocuments } from '../saveDocuments';
 import {
+  ChapterMapping,
   SpecialtyMapping,
   TechnologyMapping,
   TImportJobError,
@@ -18,6 +21,7 @@ import {
 
 const CATEGORY_MAPPING_FILE = 'category-mapping.yaml';
 const SPECIALTIES_FILE = 'specialties.yaml';
+const CHAPTERS_FILE = 'chapters.yaml';
 
 /**
  * Проверяет, что YAML-конфиг был загружен и содержит хотя бы один ключ.
@@ -88,6 +92,7 @@ export async function runImport(options: TRunImportOptions): Promise<TRunImportR
   let importJobId: string | null = null;
 
   try {
+    await migrateDatabaseSchema(jobsClient);
     importJobId = await createImportJob(jobsClient, { branch, commitSha });
     await markImportJobRunning(jobsClient, importJobId);
     if (!importJobId) {
@@ -97,25 +102,41 @@ export async function runImport(options: TRunImportOptions): Promise<TRunImportR
     const configPath = {
       technologyPath: `${configDir}/${CATEGORY_MAPPING_FILE}`,
       specialtiesPath: `${configDir}/${SPECIALTIES_FILE}`,
+      chaptersPath: `${configDir}/${CHAPTERS_FILE}`,
     };
     const technologyMapping = loadYAMLContent<TechnologyMapping>(configPath.technologyPath);
     const specialtyMapping = loadYAMLContent<SpecialtyMapping>(configPath.specialtiesPath);
+    const chapterMapping = loadYAMLContent<ChapterMapping>(configPath.chaptersPath);
     assertConfigLoaded(technologyMapping, configPath.technologyPath);
     assertConfigLoaded(specialtyMapping, configPath.specialtiesPath);
     if (shouldClearBeforeImport) {
       throw new Error('Destructive clear запрещен для production revision import');
     }
 
-    const documents = readRevisionDocuments({
-      repoPath: repoPath || process.cwd(),
+    const repoRoot = repoPath || process.cwd();
+    const revisionDocuments = readRevisionDocuments({
+      repoPath: repoRoot,
       docsPath,
       branch,
       commitSha,
       technologyMapping,
       specialtyMapping,
+      chapterMapping,
     });
+    const { documents, warnings } = normalizeDocuments({
+      documents: revisionDocuments,
+      technologyMapping,
+      docsRoot: path.isAbsolute(docsPath) ? path.relative(repoRoot, docsPath) : docsPath,
+      assetPaths: listRevisionAssets({ repoPath: repoRoot, docsPath, commitSha }),
+      assetsBaseUrl: ASSETS_BASE_URL,
+    });
+    const warningsResult = { warnings: warnings.slice(0, MAX_STORED_WARNINGS), warningsTotal: warnings.length };
     const changedDocuments = shouldForce ? documents : await filterChangedFiles(documents);
     const skipped = documents.length - changedDocuments.length;
+
+    if (warnings.length > 0) {
+      console.warn(`Предупреждений нормализации: ${warnings.length}`);
+    }
 
     if (shouldCheckOnly) {
       const checkOnlyResult: TRunImportResult = {
@@ -130,6 +151,7 @@ export async function runImport(options: TRunImportOptions): Promise<TRunImportR
         updated: 0,
         skipped,
         archived: 0,
+        ...warningsResult,
       };
       await markImportJobSuccess(jobsClient, importJobId, checkOnlyJobResult);
       return checkOnlyResult;
@@ -179,6 +201,7 @@ export async function runImport(options: TRunImportOptions): Promise<TRunImportR
       updated: changedDocuments.length,
       skipped,
       archived: archivedCount,
+      ...warningsResult,
     };
     await markImportJobSuccess(jobsClient, currentImportJobId, importJobResult);
 

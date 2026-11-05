@@ -1,4 +1,53 @@
-export type YAMLContent = SpecialtyMapping | TechnologyMapping;
+export type YAMLContent = SpecialtyMapping | TechnologyMapping | ChapterMapping;
+
+/** Тип материала: задаёт секцию и адрес на сайте. */
+export type TArticleKind = 'article' | 'question' | 'quiz' | 'task';
+
+/** Блок «Зачем» статьи или технологии. */
+export type TArticleContext = {
+  caption?: string;
+  interview?: string;
+  result?: string[];
+};
+
+/** Внешний материал статьи из `info`. */
+export type TArticleLink = {
+  url: string;
+  title: string | null;
+  image: string | null;
+};
+
+/** Пункт оглавления статьи. */
+export type TTocItem = {
+  id: string;
+  label: string;
+};
+
+/** Внешний материал технологии из YAML. */
+export type TTechnologyResource = {
+  url: string;
+  title: string;
+  image?: string;
+};
+
+/**
+ * Раздел (chapter) технологии: заголовок секции, якорь и порядок на экране.
+ *
+ * Одинаковый `anchor` объединяет несколько chapter в одну секцию.
+ */
+export type TChapterConfig = {
+  title: string;
+  anchor: string;
+  order: number;
+  kind?: TArticleKind;
+};
+
+/**
+ * Маппинг разделов из `chapters.yaml`: имя chapter → конфиг секции.
+ */
+export type ChapterMapping = {
+  [chapter: string]: TChapterConfig;
+};
 
 /**
  * Маппинг специальностей
@@ -66,6 +115,33 @@ export type TechnologyMapping = {
 
     /** Описание технологии */
     description: string;
+
+    /** Публичный слаг в адресе `/topics/<slug>` */
+    slug?: string;
+
+    /** Название на сайте */
+    title?: string;
+
+    /** Файл иконки */
+    icon?: string;
+
+    /** Тип материалов технологии по умолчанию */
+    kind?: TArticleKind;
+
+    /** Публичные слаги технологий, которые изучают раньше */
+    prerequisites?: string[];
+
+    /** Канал в карточке навыка */
+    subscribe?: { label: string; href: string };
+
+    /** Блок «Зачем изучать» */
+    context?: TArticleContext;
+
+    /** Карусель полезных материалов */
+    resources?: TTechnologyResource[];
+
+    /** Переопределение `chapters.yaml` для этой технологии */
+    chapters?: ChapterMapping;
   };
 };
 
@@ -112,12 +188,34 @@ export type DocItem = {
   tags: string[];
   /** Массив валидированных ссылок из info */
   info: string[];
+  /** Ссылки из info с подписью и картинкой, в порядке frontmatter */
+  links?: TArticleLink[];
   /** Режим доступа из frontmatter */
   access: string;
   /** Используемые инструменты из frontmatter */
   tools: string[];
   /** Порядок отображения документа */
   order: number;
+  /** Тип материала */
+  kind?: TArticleKind;
+  /** Заголовок секции на экране технологии */
+  chapter?: string;
+  /** Якорь секции */
+  chapterAnchor?: string;
+  /** Порядок секции */
+  chapterOrder?: number;
+  /** Сложность 1..3 */
+  complexity?: number | null;
+  /** Важность 1..3 */
+  importance?: number | null;
+  /** Блок «Зачем» из frontmatter */
+  context?: TArticleContext | null;
+  /** Нормализованный CommonMark с якорями `{#id}` */
+  contentMd?: string;
+  /** Открытая часть для закрытой статьи */
+  previewMd?: string;
+  /** Оглавление по заголовкам */
+  toc?: TTocItem[];
   /** Хеш содержимого файла для отслеживания изменений */
   file_hash: string;
   /** Дата создания документа */
@@ -236,12 +334,24 @@ export type TRunImportResult = {
 
 export type TImportJobStatus = 'pending' | 'running' | 'success' | 'failed';
 
+export type TImportWarningType = 'unresolved-link' | 'unresolved-embed' | 'base64-image';
+
+/** Проблема контента, найденная при нормализации markdown. */
+export type TImportWarning = {
+  uid: string;
+  type: TImportWarningType;
+  target?: string;
+};
+
 export type TImportJobResult = {
   total: number;
   created: number;
   updated: number;
   skipped: number;
   archived: number;
+  /** Первые предупреждения нормализации, остальные учтены в `warningsTotal` */
+  warnings?: TImportWarning[];
+  warningsTotal?: number;
 };
 
 export type TArticleArchiveState = {

@@ -1,7 +1,8 @@
 import { execFileSync } from 'child_process';
 import path from 'path';
 import { processMarkdownContent } from '../../docScanner/lib/processMarkdownFile';
-import { DocItem, SpecialtyMapping, TechnologyMapping } from '../../types';
+import { isImagePath } from '../../normalize/lib/assets';
+import { ChapterMapping, DocItem, SpecialtyMapping, TechnologyMapping } from '../../types';
 
 type TReadRevisionDocumentsParams = {
   repoPath: string;
@@ -10,6 +11,7 @@ type TReadRevisionDocumentsParams = {
   commitSha: string;
   technologyMapping: TechnologyMapping;
   specialtyMapping: SpecialtyMapping;
+  chapterMapping?: ChapterMapping;
 };
 
 /**
@@ -89,6 +91,37 @@ function listMarkdownFiles(repoPath: string, commitSha: string, docsRelativePath
     .filter((line) => line.endsWith('.md'));
 }
 
+type TListRevisionAssetsParams = {
+  repoPath: string;
+  docsPath: string;
+  commitSha: string;
+};
+
+/**
+ * Возвращает картинки vault на ревизии: пути от корня vault для embeds `![[img.png]]`.
+ *
+ * Commit заранее проверяет `readRevisionDocuments`.
+ *
+ * @param params - Репозиторий, путь к vault и commit
+ * @returns Пути картинок от корня vault
+ */
+export function listRevisionAssets({ repoPath, docsPath, commitSha }: TListRevisionAssetsParams): string[] {
+  const docsRelativePath = toRepoRelativePath(repoPath, docsPath).replace(/\/+$/, '');
+  const output = runGitCommand(repoPath, ['ls-tree', '-r', '--name-only', commitSha, '--', docsRelativePath]);
+
+  if (!output) {
+    return [];
+  }
+
+  const prefix = docsRelativePath && docsRelativePath !== '.' ? `${docsRelativePath}/` : '';
+
+  return output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && isImagePath(line))
+    .map((line) => (prefix && line.startsWith(prefix) ? line.slice(prefix.length) : line));
+}
+
 /**
  * Читает содержимое файла из git object database без checkout рабочей копии.
  *
@@ -115,6 +148,7 @@ export function readRevisionDocuments({
   commitSha,
   technologyMapping,
   specialtyMapping,
+  chapterMapping,
 }: TReadRevisionDocumentsParams): DocItem[] {
   assertRevision(repoPath, branch, commitSha);
   const docsRelativePath = toRepoRelativePath(repoPath, docsPath);
@@ -129,6 +163,7 @@ export function readRevisionDocuments({
       content: fileContent,
       technologyMapping,
       specialtyMapping,
+      chapterMapping,
       revisionMetadata: {
         sourceBranch: branch,
         sourceCommitSha: commitSha,

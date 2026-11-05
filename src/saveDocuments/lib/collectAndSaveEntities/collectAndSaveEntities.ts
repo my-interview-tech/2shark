@@ -1,7 +1,7 @@
 import { TCollectAndSaveEntities, TCollectAndSaveEntitiesResult } from './types';
-import { createSpecialty, createTechnology } from '../createNamedEntity';
+import { createSpecialty, createTechnologyEntity } from '../createNamedEntity';
 import { toStringArray } from '../utils';
-import { NamedEntity } from '../../types';
+import { NamedEntity, TechnologyEntity } from '../../types';
 import { saveSpecialties } from '../saveSpecialties';
 import { saveTechnologies } from '../saveTechnologies';
 import { createTechnologySpecialtyLinks } from '../createTechnologySpecialtyLinks';
@@ -37,7 +37,7 @@ export async function collectAndSaveEntities(
     { client, documents, technologyMapping, specialtyMapping, debug = false }: TCollectAndSaveEntities,
 ): Promise<TCollectAndSaveEntitiesResult> {
     const specialties = new Map<string, NamedEntity>();
-    const technologies = new Map<string, NamedEntity>();
+    const technologies = new Map<string, TechnologyEntity>();
 
     // Собираем специальности из specialtyMapping
     if (specialtyMapping) {
@@ -82,7 +82,7 @@ export async function collectAndSaveEntities(
         if (!technologies.has(doc.technology)) {
             technologies.set(
                 doc.technology,
-                createTechnology(doc.technology, doc.priority)
+                createTechnologyEntity(doc.technology, doc.priority, technologyMapping?.[doc.technology])
             );
         }
     }

@@ -12,7 +12,7 @@ import { SCHEMA } from '../../../schema';
  * Транзакционность должна обеспечиваться вызывающей стороной (внешний `BEGIN/COMMIT`).
  *
  * @param client Клиент PostgreSQL (с методом `query`)
- * @param technologies Карта технологий: имя → { name, slug, priority }
+ * @param technologies Карта технологий: имя → { name, slug, priority, publicSlug, title, meta }
  * @param debug Включить подробные логи (по умолчанию false)
  * @returns Карта соответствий имени технологии её `id` в БД
  *
@@ -40,6 +40,9 @@ export async function saveTechnologies({
       technology.name,
       technology.slug,
       technology.priority,
+      technology.publicSlug,
+      technology.title,
+      JSON.stringify(technology.meta),
     ]);
 
     technologyIds.set(key, result.rows[0].id);
